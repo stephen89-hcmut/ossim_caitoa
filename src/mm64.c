@@ -373,14 +373,24 @@ int __swap_cp_page(struct memphy_struct *mpsrc, addr_t srcfpn,
  */
 int init_mm(struct mm_struct *mm, struct pcb_t *caller)
 {
+  int i;
   struct vm_area_struct *vma0 = malloc(sizeof(struct vm_area_struct));
 
-  /* TODO init page table directory */
-   //mm->pgd = ...
-   //mm->p4d = ...
-   //mm->pud = ...
-   //mm->pmd = ...
-   //mm->pt = ...
+  mm->pgd = calloc(PAGING64_MAX_PGN, sizeof(addr_t));
+  mm->p4d = calloc(PAGING64_MAX_PGN, sizeof(addr_t));
+  mm->pud = calloc(PAGING64_MAX_PGN, sizeof(addr_t));
+  mm->pmd = calloc(PAGING64_MAX_PGN, sizeof(addr_t));
+  mm->pt = calloc(PAGING64_MAX_PGN, sizeof(addr_t));
+
+  for (i = 0; i < PAGING_MAX_SYMTBL_SZ; i++) {
+    mm->symrgtbl[i].vmaid = i;
+    mm->symrgtbl[i].rg_start = 0;
+    mm->symrgtbl[i].rg_end = 0;
+    mm->symrgtbl[i].rg_next = NULL;
+  }
+
+  mm->fifo_pgn = NULL;
+  mm->kcpooltbl = NULL;
 
 
   /* By default the owner comes with at least one vma */
@@ -392,15 +402,13 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
   enlist_vm_rg_node(&vma0->vm_freerg_list, first_rg);
 
   /* TODO update VMA0 next */
-  // vma0->next = ...
+  vma0->vm_next = NULL;
 
   /* Point vma owner backward */
-  //vma0->vm_mm = mm; 
+  vma0->vm_mm = mm; 
 
   /* TODO: update mmap */
-  //mm->mmap = ...
-  //mm->symrgtbl = ...
-  //mm->kcpooltbl
+  mm->mmap = vma0;
 
   return 0;
 }
