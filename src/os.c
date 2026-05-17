@@ -47,6 +47,8 @@ struct cpu_args {
 	int id;
 };
 
+
+
 static int read_nonempty_line(FILE * file, char * buffer, size_t size)
 {
 	while (fgets(buffer, size, file) != NULL) {

@@ -77,6 +77,10 @@ struct pcb_t * get_mlq_proc(void) {
 	unsigned long prio;
 
 	pthread_mutex_lock(&queue_lock);
+	/*TODO: get a process from PRIORITY [ready_queue].
+	 *      It worth to protect by a mechanism.
+	 * */
+
 	for (prio = 0; prio < MAX_PRIO; prio++) {
 		if (empty(&mlq_ready_queue[prio]))
 			continue;
@@ -101,6 +105,10 @@ void put_mlq_proc(struct pcb_t * proc) {
 	proc->krnl->ready_queue = &ready_queue;
 	proc->krnl->mlq_ready_queue = mlq_ready_queue;
 	proc->krnl->running_list = &running_list;
+	/* TODO: put running proc to running_list 
+	 *       It worth to protect by a mechanism.
+	 * 
+	 */
 
 	pthread_mutex_lock(&queue_lock);
 	enqueue(&mlq_ready_queue[prio], proc);
@@ -116,6 +124,10 @@ void add_mlq_proc(struct pcb_t * proc) {
 	proc->krnl->ready_queue = &ready_queue;
 	proc->krnl->mlq_ready_queue = mlq_ready_queue;
 	proc->krnl->running_list = &running_list;
+	/* TODO: put running proc to running_list
+	 *       It worth to protect by a mechanism.
+	 * 
+	 */
 
 	pthread_mutex_lock(&queue_lock);
 	enqueue(&mlq_ready_queue[prio], proc);
