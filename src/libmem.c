@@ -25,6 +25,7 @@
 #include <pthread.h>
 
 static pthread_mutex_t mmvm_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mmpg_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /*enlist_vm_freerg_list - add new rg to freerg_list
  *@mm: memory region
@@ -202,7 +203,6 @@ int libfree(struct pcb_t *proc, uint32_t reg_index)
   {
     return -1;
   }
-printf("%s:%d\n",__func__,__LINE__);
 #ifdef IODUMP
   /* TODO dump IO content (if needed) */
 #ifdef PAGETBL_DUMP
@@ -221,6 +221,7 @@ printf("%s:%d\n",__func__,__LINE__);
  */
 int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 {
+  pthread_mutex_lock(&mmpg_lock);
 
   uint32_t pte = pte_get_entry(caller, pgn);
 
@@ -253,6 +254,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
       __swap_cp_page(caller->krnl->active_mswp, PAGING_SWP(pte), caller->krnl->mram, tgtfpn);
       MEMPHY_put_freefp(caller->krnl->active_mswp, PAGING_SWP(pte));
       pte_set_fpn(caller, pgn, tgtfpn);
+      enlist_pgn_node(&caller->krnl->mm->fifo_pgn, pgn);
     } else {
       /* TODO: Implement swap frame from MEMRAM to MEMSWP and vice versa. */
       if (MEMPHY_get_freefp(caller->krnl->mram, &tgtfpn) != 0) {
@@ -275,6 +277,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
   }
 
   *fpn = PAGING_FPN(pte_get_entry(caller, pgn));
+  pthread_mutex_unlock(&mmpg_lock);
 
   return 0;
 }
@@ -359,7 +362,6 @@ int libread(
     uint32_t* destination)
 {
   BYTE data;
-printf("%s:%d\n",__func__,__LINE__);
   int val = __read(proc, 0, source, offset, &data);
 
   *destination = data;
