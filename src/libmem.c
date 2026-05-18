@@ -26,6 +26,15 @@
 
 static pthread_mutex_t mmvm_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static struct pcb_t *
+resolve_caller(struct krnl_t *krnl, uint32_t pid)
+{
+  if (krnl == NULL)
+    return NULL;
+
+  return find_proc_by_pid(krnl, pid);
+}
+
 /*enlist_vm_freerg_list - add new rg to freerg_list
  *@mm: memory region
  *@rg_elmt: new region
@@ -186,10 +195,16 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
  *@size: allocated size
  *@reg_index: memory region ID (used to identify variable in symbole table)
  */
-int liballoc(struct pcb_t *proc, addr_t size, uint32_t reg_index)
+int liballoc(struct krnl_t *krnl, uint32_t pid, addr_t size, uint32_t reg_index)
 {
   addr_t  addr;
-  int val = __alloc(proc, 0, reg_index, size, &addr);
+  struct pcb_t *proc = resolve_caller(krnl, pid);
+  int val;
+
+  if (proc == NULL)
+    return -1;
+
+  val = __alloc(proc, 0, reg_index, size, &addr);
   if (val == -1)
   {
     return -1;
@@ -211,14 +226,14 @@ int liballoc(struct pcb_t *proc, addr_t size, uint32_t reg_index)
  *@reg_index: memory region ID (used to identify variable in symbole table)
  */
 
-int libfree(struct pcb_t *proc, uint32_t reg_index)
+int libfree(struct krnl_t *krnl, uint32_t pid, uint32_t reg_index)
 {
+  struct pcb_t *proc = resolve_caller(krnl, pid);
   int val = __free(proc, 0, reg_index);
   if (val == -1)
   {
     return -1;
   }
-printf("%s:%d\n",__func__,__LINE__);
 #ifdef IODUMP
   /* TODO dump IO content (if needed) */
 #ifdef PAGETBL_DUMP
@@ -243,6 +258,8 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
   if (mm == NULL || caller == NULL || caller->krnl == NULL || caller->krnl->mram == NULL)
     return -1;
 
+  caller->krnl->mem_access_cnt++;
+
   pte = pte_get_entry(caller, pgn);
 
   /* TODO Initialize the target frame storing our variable */
@@ -250,6 +267,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 
   if (!PAGING_PAGE_PRESENT(pte) || (pte & PAGING_PTE_SWAPPED_MASK))
   {
+    caller->krnl->page_fault_cnt++;
     addr_t vicpgn = 0;
     addr_t swpfpn = 0;
 //  addr_t vicfpn;
@@ -263,6 +281,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
       uint32_t vicpte;
       addr_t vicfpn;
 
+      caller->krnl->page_replace_cnt++;
       if (find_victim_page(caller->krnl->mm, &vicpgn) != 0)
         return -1;
 
@@ -282,6 +301,8 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
       if (__swap_cp_page(caller->krnl->mram, vicfpn, caller->krnl->active_mswp, swpfpn) != 0)
         return -1;
 
+      caller->krnl->swap_out_cnt++;
+
       /* Update page table */
       //pte_set_swap(...);
 
@@ -300,6 +321,8 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 
       if (__swap_cp_page(caller->krnl->active_mswp, swpoff, caller->krnl->mram, target_fpn) != 0)
         return -1;
+
+      caller->krnl->swap_in_cnt++;
     }
 
     if (pte_set_fpn(caller, pgn, target_fpn) != 0)
@@ -404,13 +427,20 @@ int __read(struct pcb_t *caller, int vmaid, int rgid, addr_t offset, BYTE *data)
 
 /*libread - PAGING-based read a region memory */
 int libread(
-    struct pcb_t *proc, // Process executing the instruction
+    struct krnl_t *krnl,
+    uint32_t pid,
     uint32_t source,    // Index of source register
     addr_t offset,    // Source address = [source] + [offset]
     uint32_t* destination)
 {
+  struct pcb_t *proc = resolve_caller(krnl, pid);
   BYTE data;
-printf("%s:%d\n",__func__,__LINE__);
+  if (proc == NULL)
+    return -1;
+
+  flockfile(stdout);
+printf("%s:%d\n",__func__,426);
+  funlockfile(stdout);
   int val = __read(proc, 0, source, offset, &data);
 
   *destination = data;
@@ -463,11 +493,16 @@ int __write(struct pcb_t *caller, int vmaid, int rgid, addr_t offset, BYTE value
 
 /*libwrite - PAGING-based write a region memory */
 int libwrite(
-    struct pcb_t *proc,   // Process executing the instruction
+    struct krnl_t *krnl,
+    uint32_t pid,
     BYTE data,            // Data to be wrttien into memory
     uint32_t destination, // Index of destination register
     addr_t offset)
 {
+  struct pcb_t *proc = resolve_caller(krnl, pid);
+  if (proc == NULL)
+    return -1;
+
   int val = __write(proc, 0, destination, offset, data);
   if (val == -1)
   {
@@ -490,8 +525,9 @@ int libwrite(
  *@size: memory size
  */
 
-int libkmem_malloc(struct pcb_t * caller, uint32_t size, uint32_t reg_index)
+int libkmem_malloc(struct krnl_t *krnl, uint32_t pid, uint32_t size, uint32_t reg_index)
 {
+  struct pcb_t *caller = resolve_caller(krnl, pid);
   addr_t addr = 0;
 
   if (caller == NULL || caller->krnl == NULL || caller->krnl->mm == NULL)
@@ -535,7 +571,7 @@ addr_t __kmalloc(struct pcb_t *caller, int vmaid, int rgid, addr_t size, addr_t 
  *@align: alignment size of each cache slot (identical cache slot size)
  *@cache_pool_id: cache pool ID
  */
-int libkmem_cache_pool_create(struct pcb_t *caller, uint32_t size, uint32_t align, uint32_t cache_pool_id)
+int libkmem_cache_pool_create(struct krnl_t *krnl, uint32_t pid, uint32_t size, uint32_t align, uint32_t cache_pool_id)
 {
   /* TODO: provide OS level management */
 
@@ -545,6 +581,8 @@ int libkmem_cache_pool_create(struct pcb_t *caller, uint32_t size, uint32_t alig
   
   struct kcache_pool_struct *newtbl;
   addr_t storage = 0;
+
+  struct pcb_t *caller = resolve_caller(krnl, pid);
 
   if (caller == NULL || caller->krnl == NULL || caller->krnl->mm == NULL || align == 0)
     return -1;
@@ -572,12 +610,16 @@ int libkmem_cache_pool_create(struct pcb_t *caller, uint32_t size, uint32_t alig
  *@cache_pool_id: cache pool ID
  *@reg_index: memory region index
  */
-int libkmem_cache_alloc(struct pcb_t *proc, uint32_t cache_pool_id, uint32_t reg_index)
+int libkmem_cache_alloc(struct krnl_t *krnl, uint32_t pid, uint32_t cache_pool_id, uint32_t reg_index)
 {
   /* TODO: provide OS level management
    *       and forward the request to helper
    */
+  struct pcb_t *proc = resolve_caller(krnl, pid);
   addr_t addr = 0;
+
+  if (proc == NULL)
+    return -1;
 
   if (__kmem_cache_alloc(proc, 0, reg_index, (int)cache_pool_id, &addr) == (addr_t)-1)
     return -1;
@@ -626,7 +668,7 @@ addr_t __kmem_cache_alloc(struct pcb_t *caller, int vmaid, int rgid, int cache_p
 }
 
 
-int libkmem_copy_from_user(struct pcb_t *caller, uint32_t source, uint32_t destination, uint32_t offset, uint32_t size)
+int libkmem_copy_from_user(struct krnl_t *krnl, uint32_t pid, uint32_t source, uint32_t destination, uint32_t offset, uint32_t size)
 {
    /* TODO: provide OS level management kmem
    */
@@ -637,6 +679,8 @@ int libkmem_copy_from_user(struct pcb_t *caller, uint32_t source, uint32_t desti
   //__write_kernel_mem(...);
   uint32_t i;
   BYTE data_cell;
+
+  struct pcb_t *caller = resolve_caller(krnl, pid);
 
   if (caller == NULL || caller->krnl == NULL || caller->krnl->mm == NULL)
     return -1;
@@ -653,7 +697,7 @@ int libkmem_copy_from_user(struct pcb_t *caller, uint32_t source, uint32_t desti
   return 0;
 }
 
-int libkmem_copy_to_user(struct pcb_t *caller, uint32_t source, uint32_t destination, uint32_t offset, uint32_t size)
+int libkmem_copy_to_user(struct krnl_t *krnl, uint32_t pid, uint32_t source, uint32_t destination, uint32_t offset, uint32_t size)
 {
   /* TODO: provide OS level management kmem
    */
@@ -664,6 +708,8 @@ int libkmem_copy_to_user(struct pcb_t *caller, uint32_t source, uint32_t destina
   //__write_user_mem(...);
   uint32_t i;
   BYTE data_cell;
+
+  struct pcb_t *caller = resolve_caller(krnl, pid);
 
   if (caller == NULL || caller->krnl == NULL || caller->krnl->mm == NULL)
     return -1;
@@ -789,6 +835,7 @@ int find_victim_page(struct mm_struct *mm, addr_t *retpgn)
   pg = mm->fifo_pgn;
   if (pg == NULL)
     return -1;
+
 
   if (pg->pg_next == NULL)
   {

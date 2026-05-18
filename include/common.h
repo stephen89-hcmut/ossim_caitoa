@@ -120,16 +120,35 @@ struct pcb_t
 	uint32_t bp;			 // Break pointer
 };
 
+struct running_node_t
+{
+	struct pcb_t *proc;
+	struct running_node_t *next;
+};
+
+struct running_list_t
+{
+	struct running_node_t *head;
+	struct running_node_t *tail;
+};
+
 /* Kernel structure */
 struct krnl_t
 {
 	struct queue_t *ready_queue;
-	struct queue_t *running_list;
+	struct running_list_t *running_list;
 #ifdef MLQ_SCHED
 	struct queue_t *mlq_ready_queue;
 #endif
 #ifdef MM_PAGING
 	struct mm_struct *mm;
+	uint64_t mem_access_cnt;
+	uint64_t pgtbl_access_cnt;
+	uint64_t page_fault_cnt;
+	uint64_t page_replace_cnt;
+	uint64_t swap_in_cnt;
+	uint64_t swap_out_cnt;
+	uint64_t pgtbl_storage_bytes;
 	struct memphy_struct *mram;
 	struct memphy_struct **mswp;
 	struct memphy_struct *active_mswp;

@@ -17,12 +17,93 @@
 
 static struct queue_t ready_queue;
 static struct queue_t run_queue;
-static struct queue_t running_list;
+static struct running_list_t running_list;
 #ifdef MLQ_SCHED
 static struct queue_t mlq_ready_queue[MAX_PRIO];
 static int slot[MAX_PRIO];
 #endif
 static pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void
+running_list_init (struct running_list_t *list)
+{
+	if (list == NULL)
+		{
+			return;
+		}
+
+	list->head = NULL;
+	list->tail = NULL;
+}
+
+static void
+running_list_add (struct running_list_t *list, struct pcb_t *proc)
+{
+	struct running_node_t *node;
+
+	if (list == NULL || proc == NULL)
+		{
+			return;
+		}
+
+	node = (struct running_node_t *) malloc (sizeof (struct running_node_t));
+	if (node == NULL)
+		{
+			return;
+		}
+
+	node->proc = proc;
+	node->next = NULL;
+	if (list->tail == NULL)
+		{
+			list->head = node;
+			list->tail = node;
+			return;
+		}
+
+	list->tail->next = node;
+	list->tail = node;
+}
+
+static void
+running_list_remove (struct running_list_t *list, struct pcb_t *proc)
+{
+	struct running_node_t *prev;
+	struct running_node_t *curr;
+
+	if (list == NULL || proc == NULL)
+		{
+			return;
+		}
+
+	prev = NULL;
+	curr = list->head;
+	while (curr != NULL)
+		{
+			if (curr->proc == proc)
+				{
+					if (prev == NULL)
+						{
+							list->head = curr->next;
+						}
+					else
+						{
+							prev->next = curr->next;
+						}
+
+					if (list->tail == curr)
+						{
+							list->tail = prev;
+						}
+
+					free (curr);
+					return;
+				}
+
+			prev = curr;
+			curr = curr->next;
+		}
+}
 
 #ifdef MLQ_SCHED
 static int
@@ -61,6 +142,48 @@ reset_all_slots (void)
 				}
 		}
 }
+
+static struct pcb_t *
+find_proc_by_pid_in_queue (struct queue_t *q, uint32_t pid)
+{
+	int i;
+
+	if (q == NULL)
+		{
+			return NULL;
+		}
+
+	for (i = 0; i < q->size; i++)
+		{
+			if (q->proc[i] != NULL && q->proc[i]->pid == pid)
+				{
+					return q->proc[i];
+				}
+		}
+
+	return NULL;
+}
+
+static struct pcb_t *
+find_proc_by_pid_in_running_list (struct running_list_t *list, uint32_t pid)
+{
+	struct running_node_t *node;
+
+	if (list == NULL)
+		{
+			return NULL;
+		}
+
+	for (node = list->head; node != NULL; node = node->next)
+		{
+			if (node->proc != NULL && node->proc->pid == pid)
+				{
+					return node->proc;
+				}
+		}
+
+	return NULL;
+}
 #endif
 
 int
@@ -88,7 +211,7 @@ init_scheduler (void)
 {
 	ready_queue.size = 0;
 	run_queue.size = 0;
-	running_list.size = 0;
+	running_list_init (&running_list);
 
 #ifdef MLQ_SCHED
 	int i;
@@ -169,6 +292,11 @@ get_mlq_proc (void)
 			proc = dequeue (&run_queue);
 		}
 
+	if (proc != NULL)
+		{
+			running_list_add (&running_list, proc);
+		}
+
 	pthread_mutex_unlock (&queue_lock);
 
 	return proc;
@@ -202,7 +330,7 @@ put_mlq_proc (struct pcb_t *proc)
 	attach_kernel_queues (proc);
 
 	pthread_mutex_lock (&queue_lock);
-	purgequeue (&running_list, proc);
+	running_list_remove (&running_list, proc);
 	enqueue (&run_queue, proc);
 	pthread_mutex_unlock (&queue_lock);
 }
@@ -261,6 +389,50 @@ add_proc (struct pcb_t *proc)
 	add_mlq_proc (proc);
 }
 
+struct pcb_t *
+find_proc_by_pid (struct krnl_t *krnl, uint32_t pid)
+{
+	struct pcb_t *caller;
+	int i;
+
+	if (krnl == NULL)
+		{
+			return NULL;
+		}
+
+	pthread_mutex_lock (&queue_lock);
+
+	caller = find_proc_by_pid_in_queue (krnl->ready_queue, pid);
+	if (caller != NULL)
+		{
+			pthread_mutex_unlock (&queue_lock);
+			return caller;
+		}
+
+	caller = find_proc_by_pid_in_running_list (krnl->running_list, pid);
+	if (caller != NULL)
+		{
+			pthread_mutex_unlock (&queue_lock);
+			return caller;
+		}
+
+	if (krnl->mlq_ready_queue != NULL)
+		{
+			for (i = 0; i < MAX_PRIO; i++)
+				{
+					caller = find_proc_by_pid_in_queue (&krnl->mlq_ready_queue[i], pid);
+					if (caller != NULL)
+						{
+							pthread_mutex_unlock (&queue_lock);
+							return caller;
+						}
+				}
+		}
+
+	pthread_mutex_unlock (&queue_lock);
+	return NULL;
+}
+
 void
 finish_scheduler (void)
 {
@@ -278,7 +450,10 @@ get_proc (void)
 			proc = dequeue (&run_queue);
 		}
 
-	enqueue (&running_list, proc);
+	if (proc != NULL)
+		{
+			running_list_add (&running_list, proc);
+		}
 	pthread_mutex_unlock (&queue_lock);
 
 	return proc;
@@ -296,7 +471,7 @@ put_proc (struct pcb_t *proc)
 	proc->krnl->running_list = &running_list;
 
 	pthread_mutex_lock (&queue_lock);
-	purgequeue (&running_list, proc);
+	running_list_remove (&running_list, proc);
 	enqueue (&run_queue, proc);
 	pthread_mutex_unlock (&queue_lock);
 }
@@ -317,8 +492,8 @@ add_proc (struct pcb_t *proc)
 	pthread_mutex_unlock (&queue_lock);
 }
 
-void
-finish_scheduler (void)
+struct pcb_t *
+find_proc_by_pid (struct krnl_t *krnl, uint32_t pid)
 {
 }
 #endif

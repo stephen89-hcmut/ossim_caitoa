@@ -54,36 +54,3 @@ dequeue (struct queue_t *q)
 
         return proc;
 }
-
-struct pcb_t *
-purgequeue (struct queue_t *q, struct pcb_t *proc)
-{
-        int i;
-        int j;
-
-        /* TODO: remove a specific item from queue
-         * */
-
-        if (q == NULL || proc == NULL || empty (q))
-                {
-                        return NULL;
-                }
-
-        for (i = 0; i < q->size; i++)
-                {
-                        if (q->proc[i] == proc)
-                                {
-                                        for (j = i; j < q->size - 1; j++)
-                                                {
-                                                        q->proc[j] = q->proc[j + 1];
-                                                }
-
-                                        q->proc[q->size - 1] = NULL;
-                                        q->size--;
-
-                                        return proc;
-                                }
-                }
-
-        return NULL;
-}

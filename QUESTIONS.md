@@ -319,3 +319,99 @@ Cơ chế này bảo đảm:
 Trong bài tập này, đồng bộ không phải là một tối ưu tùy chọn mà là một yêu cầu bắt buộc để đảm bảo tính đúng đắn của mọi tài nguyên kernel có thể bị truy cập đồng thời.
 
 ---
+
+# Câu 5
+
+## Khi một system call chạy quá lâu thì hệ điều hành phát hiện và xử lý như thế nào?
+
+Về nguyên tắc, hệ điều hành không để một tiến trình giữ CPU vô hạn. Cơ chế phát hiện thường dựa vào timer interrupt và bộ lập lịch. Khi timer hết một quantum, CPU bị ngắt, kernel kiểm tra trạng thái tiến trình, và scheduler quyết định tiếp tục chạy hay đưa tiến trình ra khỏi CPU.
+
+Trong Simple OS của bài này, cơ chế đó thể hiện rõ qua timer và MLQ scheduler. Luồng chạy chính nằm ở [src/os.c](src/os.c), trong đó mỗi CPU thread chạy theo từng time slot; còn logic lựa chọn tiến trình nằm ở [src/sched.c](src/sched.c). Khi một tiến trình đang thực thi syscall quá lâu, hệ thống không có watchdog riêng để “đo thời gian syscall” theo kiểu phần cứng chuyên dụng, nhưng vẫn bị giới hạn bởi time-slice và đồng bộ luồng. Nói cách khác, tiến trình chỉ có thể tiếp tục khi scheduler cho phép và timer cấp slot tiếp theo.
+
+Nếu syscall chỉ tốn CPU nhưng không giữ khóa, nó sẽ bị cắt theo time slice như các lệnh khác. Nếu syscall giữ mutex quá lâu, các thread khác có thể bị chặn và hệ thống biểu hiện chậm hoặc treo tạm thời. Đây là lý do trong project, các vùng găng như scheduler lock, memory lock và syscall lock đều được bảo vệ rất cẩn thận.
+
+### Cách hệ điều hành xử lý
+
+- Timer interrupt kiểm tra và tạo cơ hội preemption.
+- Scheduler quyết định process nào tiếp tục chạy.
+- Nếu syscall làm hỏng cân bằng CPU, process có thể bị trả về queue và đợi lượt sau.
+- Nếu syscall làm tắc vùng găng, các CPU khác phải chờ cho đến khi lock được nhả.
+
+### Ý nghĩa trong project
+
+Trong code của bạn, syscall memory đi qua `_syscall(krnl, pid, nr, regs)` ở [src/syscall.c](src/syscall.c), rồi được kernel dispatch ở [src/sys_mem.c](src/sys_mem.c). Điều này cho phép kernel kiểm soát thời điểm và cách xử lý thay vì để user-space tự can thiệp trực tiếp. Nó cũng giải thích vì sao syscall dài không thể “chiếm luôn” toàn bộ hệ thống: tiến trình vẫn bị điều phối bởi scheduler và timer của mô phỏng.
+
+---
+
+# Câu 6
+
+## Lợi ích của việc mở rộng hierarchical paging lên N tầng là gì?
+
+Hierarchical paging nhiều tầng là câu trả lời trực tiếp cho bài toán không gian địa chỉ rất lớn. Khi số bit địa chỉ tăng, bảng trang phẳng sẽ phình ra khổng lồ và lãng phí bộ nhớ cho các vùng không dùng. Phân cấp nhiều tầng giúp chỉ tạo các bảng con khi cần.
+
+Trong project này, mô hình MM64 thể hiện rõ ý tưởng đó: địa chỉ 64-bit được tách thành PGD, P4D, PUD, PMD, PT và OFFSET trong [include/mm64.h](include/mm64.h), và phần cài đặt dịch địa chỉ nằm ở [src/mm64.c](src/mm64.c).
+
+### Lợi ích chính
+
+- Giảm bộ nhớ metadata cho page table vì chỉ cấp phát các tầng cần thiết.
+- Hỗ trợ không gian địa chỉ lớn hơn rất nhiều so với bảng phẳng.
+- Phù hợp với vùng địa chỉ thưa, vì không phải phần nào của không gian ảo cũng cần map.
+- Dễ mở rộng mô hình từ 32-bit lên 64-bit hoặc hơn mà không phải thiết kế lại toàn bộ hệ thống.
+
+### Trade-off
+
+- Mỗi lần dịch địa chỉ cần đi qua nhiều mức tra cứu hơn.
+- Chi phí truy cập tăng so với một bảng phẳng đơn giản.
+- Cài đặt phức tạp hơn, cần quản lý nhiều cấu trúc con và kiểm tra hợp lệ ở từng tầng.
+
+### Liên hệ với project
+
+Project của bạn có các hàm tách địa chỉ như `get_pd_from_address()` và `get_pd_from_pagenum()` trong [src/mm64.c](src/mm64.c). Các hàm này minh họa rõ lợi ích của hierarchical paging: hệ thống vẫn mô phỏng được không gian 64-bit lớn, nhưng metadata vẫn gọn hơn so với một bảng toàn cục khổng lồ. Khi ghi báo cáo, bạn có thể nhấn mạnh rằng đây là kỹ thuật bắt buộc trong các OS hiện đại để cân bằng giữa khả năng mở rộng và chi phí bộ nhớ.
+
+---
+
+# Câu 7
+
+## Điều gì xảy ra nếu không xử lý đồng bộ trong Simple OS? Hãy minh họa vấn đề của hệ điều hành bài tập bằng ví dụ từ các thao tác kernel memory nếu có.
+
+Nếu không có synchronization, Simple OS sẽ rơi vào race condition rất nhanh vì scheduler và memory manager đều là tài nguyên dùng chung giữa nhiều CPU thread. Kết quả thường không phải lỗi biên dịch mà là lỗi chạy, dữ liệu hỏng, hoặc output không ổn định giữa các lần thực thi.
+
+Trong project, các khóa như `queue_lock`, `mmvm_lock`, `sysmem_lock` được dùng để bảo vệ vùng găng. Điều này đặc biệt quan trọng trong các thao tác kernel memory, nơi mà một sai lệch nhỏ có thể làm hỏng page table, free-frame list, hoặc running queue.
+
+### Ví dụ trong kernel memory
+
+Giả sử hai CPU cùng gọi cấp phát bộ nhớ hoặc cùng xử lý page fault mà không có khóa:
+
+- Cả hai có thể đọc cùng một frame trống trước khi frame đó bị gỡ khỏi free list.
+- Hai page table entry có thể cùng trỏ về một frame vật lý.
+- Một tiến trình ghi đè dữ liệu của tiến trình khác.
+- Free list hoặc running list có thể bị mất node, tạo thành corruption.
+
+Với paging, lỗi này còn nguy hiểm hơn vì nó có thể làm page table entry trỏ sai frame, gây đọc/ghi nhầm dữ liệu hoặc crash mô phỏng.
+
+### Dấu hiệu quan sát được trong Simple OS
+
+- Output thay đổi giữa các lần chạy dù input giống nhau.
+- CPU có thể bị treo hoặc không thoát đúng.
+- Dòng log bị interleave khó đọc.
+- Một số cấu hình paging có thể sinh lỗi invalid page table entry hoặc mất tiến trình.
+
+### Liên hệ với các thay đổi trong project
+
+Trong quá trình sửa project, các chỗ sau cho thấy vì sao đồng bộ là bắt buộc:
+
+- Scheduler dùng mutex để bảo vệ queue và `running_list` trong [src/sched.c](src/sched.c).
+- Memory management dùng `mmvm_lock` để bảo vệ cấp phát và truy cập trang trong [src/libmem.c](src/libmem.c).
+- Syscall memory dùng `sysmem_lock` để tránh hai luồng syscall cùng sửa state kernel trong [src/sys_mem.c](src/sys_mem.c).
+
+Nếu bỏ đồng bộ, các cấu trúc này sẽ bị cập nhật chồng chéo. Nói ngắn gọn, synchronization là điều giữ cho mô hình OS mô phỏng của bạn còn đúng: scheduler không mất PCB, memory manager không cấp trùng frame, và syscall không làm hỏng trạng thái kernel.
+
+---
+
+# Tóm tắt ngắn theo project
+
+- MLQ: đã triển khai và chạy được.
+- User/kernel separation: user-facing path dùng `krnl + pid`, không truyền PCB trực tiếp.
+- Paging MM64: đã có hierarchical paging, page fault, swap path và thống kê.
+- `vmap_pgd_memset`: đã dùng cơ chế `memset` để mô phỏng dummy allocation.
+- Replacement: có cơ chế và thống kê, nhưng muốn minh họa nonzero counters thì cần workload đủ mạnh.

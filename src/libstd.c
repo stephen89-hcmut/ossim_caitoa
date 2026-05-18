@@ -11,11 +11,12 @@
 #include "common.h"
 #include "syscall.h"
 
-int libsyscall (struct pcb_t *caller,
-             uint32_t syscall_idx,
-             arg_t a1,
-             arg_t a2,
-             arg_t a3)
+int libsyscall (struct krnl_t *krnl,
+				 uint32_t pid,
+				 uint32_t syscall_idx,
+				 arg_t a1,
+				 arg_t a2,
+				 arg_t a3)
 {
    struct sc_regs regs;
 
@@ -33,5 +34,5 @@ int libsyscall (struct pcb_t *caller,
    regs.a2 = a2;
    regs.a3 = a3;
 
-   return _syscall(caller->krnl, caller->pid, syscall_idx, &regs);
+	return _syscall(krnl, pid, syscall_idx, &regs);
 }

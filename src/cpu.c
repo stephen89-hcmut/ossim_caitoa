@@ -76,52 +76,52 @@ switch (ins.opcode)
 		break;
 	case ALLOC:
 #ifdef MM_PAGING
-		stat = liballoc(proc, ins.arg_0, ins.arg_1);
+		stat = liballoc(proc->krnl, proc->pid, ins.arg_0, ins.arg_1);
 #else
 		stat = alloc(proc, ins.arg_0, ins.arg_1);
 #endif
 		break;
 #ifdef MM_PAGING		
 	case KMALLOC:
-		stat = libkmem_malloc(proc, ins.arg_0, ins.arg_1);
+		stat = libkmem_malloc(proc->krnl, proc->pid, ins.arg_0, ins.arg_1);
 		break;
 	case KMEM_CACHE_CREATE:
-		stat = libkmem_cache_pool_create(proc, ins.arg_0, ins.arg_1, ins.arg_2);
+		stat = libkmem_cache_pool_create(proc->krnl, proc->pid, ins.arg_0, ins.arg_1, ins.arg_2);
 		break;
 	case KMEM_CACHE_ALLOC:
-		stat = libkmem_cache_alloc(proc, ins.arg_0, ins.arg_1);
+		stat = libkmem_cache_alloc(proc->krnl, proc->pid, ins.arg_0, ins.arg_1);
 		break;
 	case COPY_FROM_USER:
-		stat = libkmem_copy_from_user(proc, ins.arg_0, ins.arg_1, ins.arg_2, ins.arg_3);
+		stat = libkmem_copy_from_user(proc->krnl, proc->pid, ins.arg_0, ins.arg_1, ins.arg_2, ins.arg_3);
 		break;
 	case COPY_TO_USER:
-		stat = libkmem_copy_to_user(proc, ins.arg_0, ins.arg_1, ins.arg_2, ins.arg_3);
+		stat = libkmem_copy_to_user(proc->krnl, proc->pid, ins.arg_0, ins.arg_1, ins.arg_2, ins.arg_3);
 		break;
 
 #endif
 	case FREE:
 #ifdef MM_PAGING
-		stat = libfree(proc, ins.arg_0);
+		stat = libfree(proc->krnl, proc->pid, ins.arg_0);
 #else
 		stat = free_data(proc, ins.arg_0);
 #endif
 		break;
 	case READ:
 #ifdef MM_PAGING
-		stat = libread(proc, ins.arg_0, ins.arg_1, (uint32_t*) &ins.arg_2);
+		stat = libread(proc->krnl, proc->pid, ins.arg_0, ins.arg_1, (uint32_t*) &ins.arg_2);
 #else
 		stat = read(proc, ins.arg_0, ins.arg_1, ins.arg_2);
 #endif
 		break;
 	case WRITE:
 #ifdef MM_PAGING
-		stat = libwrite(proc, ins.arg_0, ins.arg_1, ins.arg_2);
+		stat = libwrite(proc->krnl, proc->pid, ins.arg_0, ins.arg_1, ins.arg_2);
 #else
 		stat = write(proc, ins.arg_0, ins.arg_1, ins.arg_2);
 #endif
 		break;
 	case SYSCALL:
-		stat = libsyscall(proc, ins.arg_0, ins.arg_1, ins.arg_2, ins.arg_3);
+		stat = libsyscall(proc->krnl, proc->pid, ins.arg_0, ins.arg_1, ins.arg_2, ins.arg_3);
 		break;
 	default:
 		stat = 1;

@@ -7,3 +7,11 @@ Time slot   2
 Time slot   3
 	CPU 0: Processed  1 has finished
 	CPU 0 stopped
+MM64 statistics:
+  memory accesses   : 0
+  pgtbl accesses    : 0
+  page faults       : 0
+  page replacements : 0
+  swap in           : 0
+  swap out          : 0
+  pgtbl storage      : 20480 bytes

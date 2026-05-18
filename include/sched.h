@@ -17,6 +17,9 @@ void finish_scheduler(void);
 /* Get the next process from ready queue */
 struct pcb_t * get_proc(void);
 
+/* Lookup a process by pid while holding the scheduler queue lock */
+struct pcb_t * find_proc_by_pid(struct krnl_t *krnl, uint32_t pid);
+
 /* Put a process back to run queue */
 void put_proc(struct pcb_t * proc);
 

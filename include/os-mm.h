@@ -117,6 +117,15 @@ struct mm_struct {
    /* list of free page */
    struct pgn_t *fifo_pgn;
 
+   /* paging statistics */
+   uint64_t mem_access_cnt;
+   uint64_t pgtbl_access_cnt;
+   uint64_t page_fault_cnt;
+   uint64_t page_replace_cnt;
+   uint64_t swap_in_cnt;
+   uint64_t swap_out_cnt;
+   uint64_t pgtbl_storage_bytes;
+
    /* kmem cache pool */
    struct kcache_pool_struct *kcpooltbl;
 

@@ -17,12 +17,12 @@
 #define SYSMEM_IO_WRITE 5
 
 extern struct vm_area_struct *get_vma_by_num(struct mm_struct *mm, int vmaid);
-int liballoc(struct pcb_t *, addr_t, uint32_t);
-int libfree(struct pcb_t *, uint32_t);
-int libread(struct pcb_t*, uint32_t, addr_t, uint32_t*);
-int libwrite(struct pcb_t*, BYTE, uint32_t, addr_t);
-int libkmem_malloc(struct pcb_t*, uint32_t, uint32_t);
-int libkmem_cache_alloc(struct pcb_t *, uint32_t, uint32_t);
-int libkmem_cache_pool_create(struct pcb_t*, uint32_t, uint32_t, uint32_t);
-int libkmem_copy_from_user(struct pcb_t*, uint32_t, uint32_t, uint32_t, uint32_t);
-int libkmem_copy_to_user(struct pcb_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+int liballoc(struct krnl_t *, uint32_t, addr_t, uint32_t);
+int libfree(struct krnl_t *, uint32_t, uint32_t);
+int libread(struct krnl_t *, uint32_t, uint32_t, addr_t, uint32_t*);
+int libwrite(struct krnl_t *, uint32_t, BYTE, uint32_t, addr_t);
+int libkmem_malloc(struct krnl_t *, uint32_t, uint32_t, uint32_t);
+int libkmem_cache_alloc(struct krnl_t *, uint32_t, uint32_t, uint32_t);
+int libkmem_cache_pool_create(struct krnl_t *, uint32_t, uint32_t, uint32_t, uint32_t);
+int libkmem_copy_from_user(struct krnl_t *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int libkmem_copy_to_user(struct krnl_t *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);

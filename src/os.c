@@ -66,15 +66,19 @@ static void * cpu_routine(void * args) {
                         }
 		}else if (proc->pc == proc->code->size) {
 			/* The porcess has finish it job */
+			flockfile(stdout);
 			printf("\tCPU %d: Processed %2d has finished\n",
 				id ,proc->pid);
+			funlockfile(stdout);
 			free(proc);
 			proc = get_proc();
 			time_left = 0;
 		}else if (time_left == 0) {
 			/* The process has done its job in current time slot */
+			flockfile(stdout);
 			printf("\tCPU %d: Put process %2d to run queue\n",
 				id, proc->pid);
+			funlockfile(stdout);
 			put_proc(proc);
 			proc = get_proc();
 		}
@@ -90,8 +94,10 @@ static void * cpu_routine(void * args) {
 			next_slot(timer_id);
 			continue;
 		}else if (time_left == 0) {
+			flockfile(stdout);
 			printf("\tCPU %d: Dispatched process %2d\n",
 				id, proc->pid);
+			funlockfile(stdout);
 			time_left = time_slot;
 		}
 		
@@ -100,7 +106,9 @@ static void * cpu_routine(void * args) {
 		time_left--;
 		next_slot(timer_id);
 	}
+	flockfile(stdout);
 	detach_event(timer_id);
+	funlockfile(stdout);
 	pthread_exit(NULL);
 }
 
@@ -134,7 +142,9 @@ static void * ld_routine(void * args) {
 	os.krnl_pgd = malloc(PAGING_MAX_PGN * sizeof(uint32_t));
 #endif
 	i=0;
+	flockfile(stdout);
 	printf("ld_routine\n");
+	funlockfile(stdout);
 	while (i < num_processes) {
 		struct pcb_t * proc = load(ld_processes.path[i]);
 		struct krnl_t * krnl = proc->krnl = &os;	
@@ -152,8 +162,10 @@ static void * ld_routine(void * args) {
 		krnl->mswp = mswp;
 		krnl->active_mswp = active_mswp;
 #endif
+		flockfile(stdout);
 		printf("\tLoaded a process at %s, PID: %d PRIO: %ld\n",
 			ld_processes.path[i], proc->pid, ld_processes.prio[i]);
+		funlockfile(stdout);
 		add_proc(proc);
 		free(ld_processes.path[i]);
 		i++;
@@ -169,7 +181,9 @@ static void * ld_routine(void * args) {
 static void read_config(const char * path) {
 	FILE * file;
 	if ((file = fopen(path, "r")) == NULL) {
+		flockfile(stdout);
 		printf("Cannot find configure file at %s\n", path);
+		funlockfile(stdout);
 		exit(1);
 	}
 	fscanf(file, "%d %d %d\n", &time_slot, &num_cpus, &num_processes);
@@ -295,6 +309,12 @@ int main(int argc, char * argv[]) {
 
 	/* Stop timer */
 	stop_timer();
+
+#ifdef MM_PAGING
+#ifdef MM64
+	print_mm_stats(&os);
+#endif
+#endif
 
 	return 0;
 

@@ -33,6 +33,8 @@ static addr_t *mm64_get_pte (struct pcb_t *caller, addr_t pgn)
   if (caller->krnl->mm->pt == NULL || caller->krnl->mm->pgd == NULL || !mm64_pgn_valid (pgn))
     return NULL;
 
+  caller->krnl->pgtbl_access_cnt++;
+
   return &caller->krnl->mm->pt[pgn];
 }
 
@@ -247,23 +249,20 @@ int vmap_pgd_memset(struct pcb_t *caller,           // process call
   /* TODO memset the page table with given pattern
    */
 
-  if (caller->krnl->mm->pgd == NULL)
+  if (caller->krnl->mm->pgd == NULL || caller->krnl->mm->p4d == NULL ||
+      caller->krnl->mm->pud == NULL || caller->krnl->mm->pmd == NULL ||
+      caller->krnl->mm->pt == NULL)
     return -1;
 
   addr_t pgn = addr >> PAGING64_ADDR_PT_SHIFT;
-  int pgit;
+  if (pgnum < 0 || pgn >= PAGING64_MAX_PGN || pgn + (addr_t)pgnum > PAGING64_MAX_PGN)
+    return -1;
 
-  for (pgit = 0; pgit < pgnum; pgit++)
-  {
-    if (pgn + pgit >= PAGING64_MAX_PGN)
-      return -1;
-
-    caller->krnl->mm->pgd[pgn + pgit] = 0;
-    caller->krnl->mm->p4d[pgn + pgit] = 0;
-    caller->krnl->mm->pud[pgn + pgit] = 0;
-    caller->krnl->mm->pmd[pgn + pgit] = 0;
-    caller->krnl->mm->pt[pgn + pgit] = 0;
-  }
+  memset(&caller->krnl->mm->pgd[pgn], 0, (size_t)pgnum * sizeof(addr_t));
+  memset(&caller->krnl->mm->p4d[pgn], 0, (size_t)pgnum * sizeof(addr_t));
+  memset(&caller->krnl->mm->pud[pgn], 0, (size_t)pgnum * sizeof(addr_t));
+  memset(&caller->krnl->mm->pmd[pgn], 0, (size_t)pgnum * sizeof(addr_t));
+  memset(&caller->krnl->mm->pt[pgn], 0, (size_t)pgnum * sizeof(addr_t));
 
   return 0;
 }
@@ -508,7 +507,19 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
 
   memset(mm->symrgtbl, 0, sizeof(mm->symrgtbl));
   mm->fifo_pgn = NULL;
+  mm->mem_access_cnt = 0;
+  mm->pgtbl_access_cnt = 0;
+  mm->page_fault_cnt = 0;
+  mm->page_replace_cnt = 0;
+  mm->swap_in_cnt = 0;
+  mm->swap_out_cnt = 0;
+  mm->pgtbl_storage_bytes = (uint64_t)5 * (uint64_t)PAGING64_MAX_PGN * (uint64_t)sizeof(addr_t);
   mm->kcpooltbl = NULL;
+
+  if (caller != NULL && caller->krnl != NULL)
+    {
+      caller->krnl->pgtbl_storage_bytes += mm->pgtbl_storage_bytes;
+    }
 
 
   /* By default the owner comes with at least one vma */
@@ -540,6 +551,21 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
   mm->mmap = vma0;
 
   return 0;
+}
+
+void print_mm_stats(struct krnl_t *krnl)
+{
+  if (krnl == NULL || krnl->mm == NULL)
+    return;
+
+  printf("MM64 statistics:\n");
+  printf("  memory accesses   : %llu\n", (unsigned long long)krnl->mem_access_cnt);
+  printf("  pgtbl accesses    : %llu\n", (unsigned long long)krnl->pgtbl_access_cnt);
+  printf("  page faults       : %llu\n", (unsigned long long)krnl->page_fault_cnt);
+  printf("  page replacements : %llu\n", (unsigned long long)krnl->page_replace_cnt);
+  printf("  swap in           : %llu\n", (unsigned long long)krnl->swap_in_cnt);
+  printf("  swap out          : %llu\n", (unsigned long long)krnl->swap_out_cnt);
+  printf("  pgtbl storage      : %llu bytes\n", (unsigned long long)krnl->pgtbl_storage_bytes);
 }
 
 struct vm_rg_struct *init_vm_rg(addr_t rg_start, addr_t rg_end)
