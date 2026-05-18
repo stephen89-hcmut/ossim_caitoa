@@ -59,6 +59,22 @@ Repo hiện đang hướng tới cấu hình:
 
 Khi sửa code, phải bảo đảm các macro này vẫn biên dịch được và hành vi không mâu thuẫn với README hay input/output của đề.
 
+### 3.5 Phân loại file theo trạng thái kiến trúc
+
+Trong repo này có một số file nhìn giống thành phần cốt lõi nhưng thực tế đang ở trạng thái legacy, compatibility, hoặc test-only. Cần phân biệt rõ để tránh sửa nhầm vào đường dẫn không còn là luồng chính của hệ thống.
+
+- `src/mm.c`: đây là module paging 32-bit cũ. Khi cấu hình hiện tại bật `MM64`, file này không còn là luồng triển khai chính. Nó được giữ lại để tương thích ngược hoặc tham khảo kiến trúc cũ, nên không nên dùng làm đích sửa lỗi cho các bài toán MM64 hiện tại.
+- `src/mem.c`: đây là backend bộ nhớ cố định cũ, chỉ còn ý nghĩa khi build theo nhánh `MM_FIXED_MEMSZ`. Trong cấu hình hiện tại, nó thuộc nhóm legacy và không phải đường đi chính của mô hình paging đang được chấm điểm.
+- `src/paging.c`: đây là testbench độc lập cho module paging. File này có mục đích debug, chạy thử cô lập các hàm quản lý bộ nhớ, và không phải một phần của kernel runtime chính khởi động từ `os.c`.
+
+Ý nghĩa thực hành của cách phân loại này là:
+
+- Nếu lỗi nằm trong luồng chạy chính của đề hiện tại, hãy ưu tiên sửa `src/mm64.c`, `src/mm-vm.c`, `src/mm-memphy.c`, `src/sys_mem.c`, `src/sched.c`, hoặc các module liên quan trực tiếp.
+- Chỉ quay lại `src/mm.c` hoặc `src/mem.c` khi bạn đang làm với nhánh cấu hình cũ, cần tham chiếu hành vi legacy, hoặc đang kiểm tra khả năng tương thích ngược.
+- Dùng `src/paging.c` như công cụ kiểm thử cô lập để tái hiện lỗi bộ nhớ nhanh hơn trước khi chạy toàn bộ hệ điều hành.
+
+Tóm lại: `mm.c` và `mem.c` là file cũ được giữ lại vì kiến trúc và tương thích, còn `paging.c` là file phụ trợ cho debug. Ba file này không có cùng vai trò với các module runtime đang được kích hoạt trong cấu hình hiện tại.
+
 ## 4. Phạm vi theo module
 
 ### 4.1 Scheduler
