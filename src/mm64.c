@@ -30,10 +30,10 @@ static addr_t *mm64_get_pte (struct pcb_t *caller, addr_t pgn)
   if (caller == NULL || caller->krnl == NULL || caller->krnl->mm == NULL)
     return NULL;
 
-  if (caller->krnl->mm->pgd == NULL || !mm64_pgn_valid (pgn))
+  if (caller->krnl->mm->pt == NULL || caller->krnl->mm->pgd == NULL || !mm64_pgn_valid (pgn))
     return NULL;
 
-  return &caller->krnl->mm->pgd[pgn];
+  return &caller->krnl->mm->pt[pgn];
 }
 
 #if defined(MM64)
@@ -87,6 +87,9 @@ int init_pte(addr_t *pte,
  */
 int get_pd_from_address(addr_t addr, addr_t* pgd, addr_t* p4d, addr_t* pud, addr_t* pmd, addr_t* pt)
 {
+  if (pgd == NULL || p4d == NULL || pud == NULL || pmd == NULL || pt == NULL)
+    return -1;
+
 	/* Extract page direactories */
 	*pgd = (addr&PAGING64_ADDR_PGD_MASK)>>PAGING64_ADDR_PGD_LOBIT;
 	*p4d = (addr&PAGING64_ADDR_P4D_MASK)>>PAGING64_ADDR_P4D_LOBIT;
@@ -137,6 +140,9 @@ int pte_set_swap(struct pcb_t *caller, addr_t pgn, int swptyp, addr_t swpoff)
   SETVAL(*pte, swptyp, PAGING_PTE_SWPTYP_MASK, PAGING_PTE_SWPTYP_LOBIT);
   SETVAL(*pte, swpoff, PAGING_PTE_SWPOFF_MASK, PAGING_PTE_SWPOFF_LOBIT);
 
+  if (caller->krnl != NULL && caller->krnl->mm != NULL && caller->krnl->mm->pgd != NULL && mm64_pgn_valid (pgn))
+    caller->krnl->mm->pgd[pgn] = *pte;
+
   return 0;
 }
 
@@ -159,6 +165,9 @@ int pte_set_fpn(struct pcb_t *caller, addr_t pgn, addr_t fpn)
   CLRBIT(*pte, PAGING_PTE_SWAPPED_MASK);
 
   SETVAL(*pte, fpn, PAGING_PTE_FPN_MASK, PAGING_PTE_FPN_LOBIT);
+
+  if (caller->krnl != NULL && caller->krnl->mm != NULL && caller->krnl->mm->pgd != NULL && mm64_pgn_valid (pgn))
+    caller->krnl->mm->pgd[pgn] = *pte;
 
   return 0;
 }
@@ -192,11 +201,31 @@ uint32_t pte_get_entry(struct pcb_t *caller, addr_t pgn)
 int pte_set_entry(struct pcb_t *caller, addr_t pgn, uint32_t pte_val)
 {
   addr_t *pte = mm64_get_pte (caller, pgn);
+  addr_t pgd = 0;
+  addr_t p4d = 0;
+  addr_t pud = 0;
+  addr_t pmd = 0;
+  addr_t pt = 0;
 
   if (pte == NULL)
     return -1;
 
   *pte = pte_val;
+
+  if (caller != NULL && caller->krnl != NULL && caller->krnl->mm != NULL)
+  {
+    get_pd_from_pagenum(pgn, &pgd, &p4d, &pud, &pmd, &pt);
+    if (caller->krnl->mm->pgd != NULL && mm64_pgn_valid(pgn))
+      caller->krnl->mm->pgd[pgn] = pte_val;
+    if (caller->krnl->mm->p4d != NULL && mm64_pgn_valid(p4d))
+      caller->krnl->mm->p4d[p4d] = PAGING_PTE_PRESENT_MASK;
+    if (caller->krnl->mm->pud != NULL && mm64_pgn_valid(pud))
+      caller->krnl->mm->pud[pud] = PAGING_PTE_PRESENT_MASK;
+    if (caller->krnl->mm->pmd != NULL && mm64_pgn_valid(pmd))
+      caller->krnl->mm->pmd[pmd] = PAGING_PTE_PRESENT_MASK;
+    if (caller->krnl->mm->pt != NULL && mm64_pgn_valid(pt))
+      caller->krnl->mm->pt[pt] = pte_val;
+  }
 
   return 0;
 }
@@ -230,6 +259,10 @@ int vmap_pgd_memset(struct pcb_t *caller,           // process call
       return -1;
 
     caller->krnl->mm->pgd[pgn + pgit] = 0;
+    caller->krnl->mm->p4d[pgn + pgit] = 0;
+    caller->krnl->mm->pud[pgn + pgit] = 0;
+    caller->krnl->mm->pmd[pgn + pgit] = 0;
+    caller->krnl->mm->pt[pgn + pgit] = 0;
   }
 
   return 0;
@@ -281,13 +314,33 @@ addr_t vmap_page_range(struct pcb_t *caller,           // process call
 
     if (fpit != NULL)
     {
-      pte_set_fpn(caller, pgn + pgit, fpit->fpn);
+      addr_t pgd = 0;
+      addr_t p4d = 0;
+      addr_t pud = 0;
+      addr_t pmd = 0;
+      addr_t pt = 0;
+
+      get_pd_from_pagenum(pgn + pgit, &pgd, &p4d, &pud, &pmd, &pt);
+      if (caller->krnl->mm->pgd != NULL && mm64_pgn_valid(pgn + pgit))
+        caller->krnl->mm->pgd[pgn + pgit] = PAGING_PTE_PRESENT_MASK;
+      if (caller->krnl->mm->p4d != NULL && mm64_pgn_valid(p4d))
+        caller->krnl->mm->p4d[p4d] = PAGING_PTE_PRESENT_MASK;
+      if (caller->krnl->mm->pud != NULL && mm64_pgn_valid(pud))
+        caller->krnl->mm->pud[pud] = PAGING_PTE_PRESENT_MASK;
+      if (caller->krnl->mm->pmd != NULL && mm64_pgn_valid(pmd))
+        caller->krnl->mm->pmd[pmd] = PAGING_PTE_PRESENT_MASK;
+      if (caller->krnl->mm->pt != NULL && mm64_pgn_valid(pt))
+        caller->krnl->mm->pt[pt] = PAGING_PTE_PRESENT_MASK;
+
+      if (pte_set_fpn(caller, pgn + pgit, fpit->fpn) != 0)
+        return 0;
       enlist_pgn_node(&caller->krnl->mm->fifo_pgn, pgn + pgit);
       fpit = fpit->fp_next;
     }
     else
     {
-      pte_set_entry(caller, pgn + pgit, 0);
+      if (pte_set_entry(caller, pgn + pgit, 0) != 0)
+        return 0;
     }
   }
 
@@ -371,6 +424,7 @@ addr_t vm_map_ram(struct pcb_t *caller, addr_t astart, addr_t aend, addr_t mapst
 {
   struct framephy_struct *frm_lst = NULL;
   addr_t ret_alloc = 0;
+  addr_t mapped_addr = 0;
 //int pgnum = incpgnum;
 
   /*@bksysnet: author provides a feasible solution of getting frames
@@ -380,7 +434,7 @@ addr_t vm_map_ram(struct pcb_t *caller, addr_t astart, addr_t aend, addr_t mapst
    *in endless procedure of swap-off to get frame and we have not provide
    *duplicate control mechanism, keep it simple
    */
-  // ret_alloc = alloc_pages_range(caller, pgnum, &frm_lst);
+  ret_alloc = alloc_pages_range(caller, incpgnum, &frm_lst);
 
   if (ret_alloc < 0 && ret_alloc != -3000)
     return -1;
@@ -393,7 +447,9 @@ addr_t vm_map_ram(struct pcb_t *caller, addr_t astart, addr_t aend, addr_t mapst
 
   /* it leaves the case of memory is enough but half in ram, half in swap
    * do the swaping all to swapper to get the all in ram */
-   vmap_page_range(caller, mapstart, incpgnum, frm_lst, ret_rg);
+   mapped_addr = vmap_page_range(caller, mapstart, incpgnum, frm_lst, ret_rg);
+   if (mapped_addr != mapstart)
+     return -1;
 
   return 0;
 }
@@ -590,9 +646,35 @@ int print_pgtbl(struct pcb_t *caller, addr_t start, addr_t end)
   addr_t pmd=0;
   addr_t pt=0;
 
+  if (caller == NULL || caller->krnl == NULL || caller->krnl->mm == NULL)
+    return -1;
+
   get_pd_from_address(start, &pgd, &p4d, &pud, &pmd, &pt);
 
   /* TODO traverse the page map and dump the page directory entries */
+
+  if (end == (addr_t)-1)
+    end = (addr_t)PAGING64_MAX_PGN * PAGING64_PAGESZ;
+  else if (end == 0 || end < start)
+    end = start + PAGING64_PAGESZ;
+
+  for (addr_t pgit = (start >> PAGING64_ADDR_PT_SHIFT); pgit < (end >> PAGING64_ADDR_PT_SHIFT); pgit++)
+  {
+    uint32_t pte = pte_get_entry(caller, pgit);
+    if (pte == 0)
+      continue;
+
+    get_pd_from_pagenum(pgit, &pgd, &p4d, &pud, &pmd, &pt);
+    printf("PGN[" FORMAT_ADDR "] IDX[" FORMAT_ADDR "," FORMAT_ADDR "," FORMAT_ADDR "," FORMAT_ADDR "," FORMAT_ADDR "] PTE[0x%08x] ",
+           pgit, pgd, p4d, pud, pmd, pt, pte);
+
+    if (PAGING_PAGE_PRESENT(pte))
+      printf("FPN[" FORMAT_ADDR "]\n", (addr_t)PAGING_FPN(pte));
+    else if (pte & PAGING_PTE_SWAPPED_MASK)
+      printf("SWP[" FORMAT_ADDR "]\n", (addr_t)PAGING_SWP(pte));
+    else
+      printf("EMPTY\n");
+  }
 
   return 0;
 }
