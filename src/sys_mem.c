@@ -14,12 +14,15 @@
 #include "queue.h"
 #include "sched.h"
 #include <stdlib.h>
+#include <pthread.h>
 
 #ifdef MM64
 #include "mm64.h"
 #else
 #include "mm.h"
 #endif
+
+static pthread_mutex_t sysmem_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static struct pcb_t *
 find_proc_by_pid_in_queue (struct queue_t *q, uint32_t pid)
@@ -88,8 +91,10 @@ find_proc_by_pid (struct krnl_t *krnl, uint32_t pid)
 
 int __sys_memmap(struct krnl_t *krnl, uint32_t pid, struct sc_regs* regs)
 {
-   int memop = regs->a1;
-   BYTE value;
+    int memop;
+    BYTE value;
+    struct pcb_t *caller;
+    int rc = -1;
 
     /* TODO THIS DUMMY CREATE EMPTY PROC TO AVOID COMPILER NOTIFY 
      *      need to be eliminated
@@ -104,11 +109,24 @@ int __sys_memmap(struct krnl_t *krnl, uint32_t pid, struct sc_regs* regs)
     *       stcmp to check the process match proc_name
     */
 //	struct queue_t *running_list = krnl->running_list;
-     struct pcb_t *caller = find_proc_by_pid (krnl, pid);
+     if (krnl == NULL || regs == NULL)
+         {
+             return -1;
+         }
+
+     pthread_mutex_lock (&sysmem_lock);
+
+     memop = regs->a1;
+     caller = find_proc_by_pid (krnl, pid);
 
      if (caller == NULL)
          {
-             return -1;
+             goto out;
+         }
+
+     if (caller->krnl == NULL || caller->krnl->mram == NULL)
+         {
+             goto out;
          }
 
      /* TODO Maching and marking the process */
@@ -118,22 +136,31 @@ int __sys_memmap(struct krnl_t *krnl, uint32_t pid, struct sc_regs* regs)
    switch (memop) {
    case SYSMEM_MAP_OP:
             /* Reserved process case*/
-			return vmap_pgd_memset (caller, regs->a2, regs->a3);
+			rc = vmap_pgd_memset (caller, regs->a2, regs->a3);
+			break;
    case SYSMEM_INC_OP:
-		    return inc_vma_limit (caller, regs->a2, regs->a3);
+		    rc = inc_vma_limit (caller, regs->a2, regs->a3);
+		    break;
    case SYSMEM_SWP_OP:
-		    return __mm_swap_page (caller, regs->a2, regs->a3);
+		    rc = __mm_swap_page (caller, regs->a2, regs->a3);
+		    break;
    case SYSMEM_IO_READ:
 		    MEMPHY_read (caller->krnl->mram, regs->a2, &value);
             regs->a3 = value;
-                        return 0;
+			    rc = 0;
+		    break;
    case SYSMEM_IO_WRITE:
 		    MEMPHY_write (caller->krnl->mram, regs->a2, regs->a3);
-                        return 0;
+			    rc = 0;
+		    break;
    default:
             printf("Memop code: %d\n", memop);
-                        return -1;
+                                                rc = -1;
    }
+
+out:
+         pthread_mutex_unlock (&sysmem_lock);
+         return rc;
 }
 
 

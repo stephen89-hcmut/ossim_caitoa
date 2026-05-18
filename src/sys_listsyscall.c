@@ -9,11 +9,43 @@
  */
 
 #include "syscall.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-int __sys_listsyscall(struct krnl_t *krnl, uint32_t pid, struct sc_regs* reg)
+int
+__sys_listsyscall (struct krnl_t *krnl, uint32_t pid, struct sc_regs *regs)
 {
-   for (int i = 0; i < syscall_table_size; i++)
-       printf("%s\n",sys_call_table[i]); 
+    FILE *fp;
+    char line[256];
+    int nr;
+    char sym[128];
 
-   return 0;
+    if (krnl == NULL || regs == NULL)
+        {
+            return -1;
+        }
+
+    fp = fopen ("src/syscalltbl.lst", "r");
+    if (fp == NULL)
+        {
+            printf ("Kernel Error: Cannot open system call vector list table.\n");
+            return -1;
+        }
+
+    printf ("==================================================\n");
+    printf ("KERNEL INTERFACE: ACTIVE SYSTEM CALL VECTOR TABLE\n");
+    printf ("==================================================\n");
+
+    while (fgets (line, sizeof (line), fp) != NULL)
+        {
+            if (sscanf (line, "__SYSCALL(%d, %127[^)])", &nr, sym) == 2)
+                {
+                    printf ("  %d %s\n", nr, sym);
+                }
+        }
+
+    printf ("==================================================\n");
+
+    fclose (fp);
+    return 0;
 }
