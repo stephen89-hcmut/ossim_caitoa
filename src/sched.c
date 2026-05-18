@@ -202,6 +202,7 @@ put_mlq_proc (struct pcb_t *proc)
 	attach_kernel_queues (proc);
 
 	pthread_mutex_lock (&queue_lock);
+	purgequeue (&running_list, proc);
 	enqueue (&run_queue, proc);
 	pthread_mutex_unlock (&queue_lock);
 }
@@ -276,6 +277,8 @@ get_proc (void)
 		{
 			proc = dequeue (&run_queue);
 		}
+
+	enqueue (&running_list, proc);
 	pthread_mutex_unlock (&queue_lock);
 
 	return proc;
@@ -293,6 +296,7 @@ put_proc (struct pcb_t *proc)
 	proc->krnl->running_list = &running_list;
 
 	pthread_mutex_lock (&queue_lock);
+	purgequeue (&running_list, proc);
 	enqueue (&run_queue, proc);
 	pthread_mutex_unlock (&queue_lock);
 }

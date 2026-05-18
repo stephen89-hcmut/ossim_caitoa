@@ -69,6 +69,14 @@ pgd_idx
 free_frame_list
 ```
 
+## Giữ nguyên comment và TODO hiện có
+
+Khi chỉnh sửa mã nguồn trong các file được phép thay đổi, tuyệt đối không tự ý xoá các comment mô tả kiến trúc, comment TODO, hoặc các block chú thích do giảng viên/nhóm đã để sẵn nếu chưa có yêu cầu thay thế tương đương.
+
+- Nếu một comment TODO liên quan trực tiếp đến luồng triển khai hiện tại, hãy giữ lại và bổ sung code bên dưới comment đó.
+- Chỉ được xoá comment khi comment đó đã được thay thế bằng comment tương đương hoặc khi có yêu cầu rõ ràng từ đề bài/nhóm.
+- Quy tắc này đặc biệt áp dụng cho `src/queue.c`, `src/sched.c`, `src/sys_mem.c` và các file module Phase 1/2/3 đang tiếp tục phát triển.
+
 ---
 
 # 2. PHÂN CHIA PHẠM VI TỆP TIN (FILE PERMISSION)
