@@ -48,61 +48,6 @@ struct cpu_args {
 };
 
 
-
-static int read_nonempty_line(FILE * file, char * buffer, size_t size)
-{
-	while (fgets(buffer, size, file) != NULL) {
-		char * cursor = buffer;
-
-		while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r')
-			cursor++;
-
-		if (*cursor == '\0' || *cursor == '\n')
-			continue;
-
-		return 1;
-	}
-
-	return 0;
-}
-
-static int parse_process_line(const char * line,
-			      unsigned long * start_time,
-			      char * proc,
-			      unsigned long * prio)
-{
-	char start_buf[100];
-	char proc_buf[100];
-	char prio_buf[100];
-	char * endptr;
-	int scanned;
-
-	if (prio != NULL) {
-		scanned = sscanf(line, "%99s %99s %99s", start_buf, proc_buf, prio_buf);
-		if (scanned < 3)
-			return 0;
-	} else {
-		scanned = sscanf(line, "%99s %99s", start_buf, proc_buf);
-		if (scanned < 2)
-			return 0;
-	}
-
-	*start_time = strtoul(start_buf, &endptr, 10);
-	if (*endptr != '\0')
-		return 0;
-
-	snprintf(proc, 100, "%s", proc_buf);
-
-	if (prio != NULL) {
-		*prio = strtoul(prio_buf, &endptr, 10);
-		if (*endptr != '\0')
-			return 0;
-	}
-
-	return 1;
-}
-
-
 static void * cpu_routine(void * args) {
 	struct timer_id_t * timer_id = ((struct cpu_args*)args)->timer_id;
 	int id = ((struct cpu_args*)args)->id;
@@ -233,58 +178,27 @@ static void read_config(const char * path) {
 		malloc(sizeof(unsigned long) * num_processes);
 #ifdef MM_PAGING
 	int sit;
-	char line[256];
-	char pending_line[256];
-	int has_pending_line = 0;
-	int has_mem_line = 0;
-	char mem_tok_0[100];
-	char mem_tok_1[100];
-	char mem_tok_2[100];
-	char mem_tok_3[100];
-	char mem_tok_4[100];
-	char * endptr;
-
-	memramsz = 0x100000000;
-	memswpsz[0] = 0x1000000;
-	for (sit = 1; sit < PAGING_MAX_MMSWP; sit++)
+#ifdef MM_FIXED_MEMSZ
+	/* We provide here a back compatible with legacy OS simulatiom config file
+         * In which, it have no addition config line for Mema, keep only one line
+	 * for legacy info 
+         *  [time slice] [N = Number of CPU] [M = Number of Processes to be run]
+         */
+        memramsz  =  0x100000000;
+        memswpsz[0] = 0x1000000;
+	for(sit = 1; sit < PAGING_MAX_MMSWP; sit++)
 		memswpsz[sit] = 0;
+#else
+	/* Read input config of memory size: MEMRAM and upto 4 MEMSWP (mem swap)
+	 * Format: (size=0 result non-used memswap, must have RAM and at least 1 SWAP)
+	 *        MEM_RAM_SZ MEM_SWP0_SZ MEM_SWP1_SZ MEM_SWP2_SZ MEM_SWP3_SZ
+	*/
+	fscanf(file, FORMAT_ARG "\n", &memramsz);
+	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
+		fscanf(file, FORMAT_ARG, &(memswpsz[sit])); 
 
-	if (read_nonempty_line(file, line, sizeof(line))) {
-		if (sscanf(line, "%99s %99s", mem_tok_0, mem_tok_1) == 2) {
-			unsigned long first = strtoul(mem_tok_0, &endptr, 10);
-			if (*endptr == '\0') {
-				unsigned long second = strtoul(mem_tok_1, &endptr, 10);
-				if (*endptr == '\0') {
-					mem_tok_2[0] = '\0';
-					mem_tok_3[0] = '\0';
-					mem_tok_4[0] = '\0';
-					(void)sscanf(line, "%99s %99s %99s %99s %99s",
-						mem_tok_0, mem_tok_1, mem_tok_2, mem_tok_3, mem_tok_4);
-					memramsz = first;
-					memswpsz[0] = second;
-					for (sit = 1; sit < PAGING_MAX_MMSWP; sit++)
-						memswpsz[sit] = 0;
-					if (mem_tok_2[0] != '\0')
-						memswpsz[1] = strtoul(mem_tok_2, NULL, 10);
-					if (mem_tok_3[0] != '\0')
-						memswpsz[2] = strtoul(mem_tok_3, NULL, 10);
-					if (mem_tok_4[0] != '\0')
-						memswpsz[3] = strtoul(mem_tok_4, NULL, 10);
-					has_mem_line = 1;
-				} else {
-					has_pending_line = 1;
-					snprintf(pending_line, sizeof(pending_line), "%s", line);
-				}
-			} else {
-				has_pending_line = 1;
-				snprintf(pending_line, sizeof(pending_line), "%s", line);
-			}
-		}
-	}
-
-	if (!has_mem_line && !has_pending_line) {
-		/* No extra line was consumed yet; the next line will be a process line. */
-	}
+       fscanf(file, "\n"); /* Final character */
+#endif
 #endif
 
 #ifdef MLQ_SCHED
@@ -297,24 +211,11 @@ static void read_config(const char * path) {
 		ld_processes.path[i][0] = '\0';
 		strcat(ld_processes.path[i], "input/proc/");
 		char proc[100];
-		char line[256];
-		int ok;
-
-		if (i == 0 && has_pending_line) {
-			snprintf(line, sizeof(line), "%s", pending_line);
-		} else {
-			if (!read_nonempty_line(file, line, sizeof(line)))
-				break;
-		}
 #ifdef MLQ_SCHED
-		ok = parse_process_line(line, &ld_processes.start_time[i], proc, &ld_processes.prio[i]);
+		fscanf(file, "%lu %s %lu\n", &ld_processes.start_time[i], proc, &ld_processes.prio[i]);
 #else
-		ok = parse_process_line(line, &ld_processes.start_time[i], proc, NULL);
+		fscanf(file, "%lu %s\n", &ld_processes.start_time[i], proc);
 #endif
-		if (!ok) {
-			printf("Cannot parse configure file at %s\n", path);
-			exit(1);
-		}
 		strcat(ld_processes.path[i], proc);
 	}
 }
