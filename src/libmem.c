@@ -221,50 +221,79 @@ printf("%s:%d\n",__func__,__LINE__);
  */
 int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 {
+  uint32_t pte;
+  addr_t target_fpn;
 
-  uint32_t pte = pte_get_entry(caller, pgn);
+  if (mm == NULL || caller == NULL || caller->krnl == NULL || caller->krnl->mram == NULL)
+    return -1;
 
-  if (!PAGING_PAGE_PRESENT(pte))
-  { /* Page is not online, make it actively living */
-    addr_t vicpgn, swpfpn;
+  pte = pte_get_entry(caller, pgn);
+
+  /* TODO Initialize the target frame storing our variable */
+//  addr_t tgtfpn 
+
+  if (!PAGING_PAGE_PRESENT(pte) || (pte & PAGING_PTE_SWAPPED_MASK))
+  {
+    addr_t vicpgn = 0;
+    addr_t swpfpn = 0;
 //  addr_t vicfpn;
 //  addr_t vicpte;
 //  struct sc_regs regs;
 
-    /* TODO Initialize the target frame storing our variable */
-//  addr_t tgtfpn 
-
     /* TODO: Play with your paging theory here */
     /* Find victim page */
-    if (find_victim_page(caller->krnl->mm, &vicpgn) == -1)
+    if (MEMPHY_get_freefp(caller->krnl->mram, &target_fpn) != 0)
     {
-      return -1;
+      uint32_t vicpte;
+      addr_t vicfpn;
+
+      if (find_victim_page(caller->krnl->mm, &vicpgn) != 0)
+        return -1;
+
+      vicpte = pte_get_entry(caller, vicpgn);
+      vicfpn = PAGING_FPN(vicpte);
+
+      /* TODO: Implement swap frame from MEMRAM to MEMSWP and vice versa*/
+
+      /* TODO copy victim frame to swap 
+       * SWP(vicfpn <--> swpfpn)
+       * SYSCALL 1 sys_memmap
+       */
+
+      if (MEMPHY_get_freefp(caller->krnl->active_mswp, &swpfpn) != 0)
+        return -1;
+
+      if (__swap_cp_page(caller->krnl->mram, vicfpn, caller->krnl->active_mswp, swpfpn) != 0)
+        return -1;
+
+      /* Update page table */
+      //pte_set_swap(...);
+
+      if (pte_set_swap(caller, vicpgn, caller->krnl->active_mswp_id, swpfpn) != 0)
+        return -1;
+
+      /* Update its online status of the target page */
+      //pte_set_fpn(...);
+
+      target_fpn = vicfpn;
     }
 
-    /* Get free frame in MEMSWP */
-    if (MEMPHY_get_freefp(caller->krnl->active_mswp, &swpfpn) == -1)
+    if (pte & PAGING_PTE_SWAPPED_MASK)
     {
-      return -1;
+      addr_t swpoff = PAGING_SWP(pte);
+
+      if (__swap_cp_page(caller->krnl->active_mswp, swpoff, caller->krnl->mram, target_fpn) != 0)
+        return -1;
     }
 
-    /* TODO: Implement swap frame from MEMRAM to MEMSWP and vice versa*/
-
-    /* TODO copy victim frame to swap 
-     * SWP(vicfpn <--> swpfpn)
-     * SYSCALL 1 sys_memmap
-     */
-
-
-    /* Update page table */
-    //pte_set_swap(...);
-
-    /* Update its online status of the target page */
-    //pte_set_fpn(...);
+    if (pte_set_fpn(caller, pgn, target_fpn) != 0)
+      return -1;
 
     enlist_pgn_node(&caller->krnl->mm->fifo_pgn, pgn);
   }
 
-  *fpn = PAGING_FPN(pte_get_entry(caller,pgn));
+  pte = pte_get_entry(caller, pgn);
+  *fpn = PAGING_FPN(pte);
 
   return 0;
 }
@@ -279,6 +308,7 @@ int pg_getval(struct mm_struct *mm, int addr, BYTE *data, struct pcb_t *caller)
 {
   int pgn = PAGING_PGN(addr);
 //int off = PAGING_OFFST(addr);
+  int off = addr & (PAGING64_PAGESZ - 1);
   int fpn;
 
   if (pg_getpage(mm, pgn, &fpn, caller) != 0)
@@ -291,6 +321,8 @@ int pg_getval(struct mm_struct *mm, int addr, BYTE *data, struct pcb_t *caller)
    *  MEMPHY READ 
    *  SYSCALL 17 sys_memmap with SYSMEM_IO_READ
    */
+  if (MEMPHY_read(caller->krnl->mram, (addr_t)fpn * PAGING64_PAGESZ + off, data) != 0)
+    return -1;
 
   return 0;
 }
@@ -305,18 +337,20 @@ int pg_setval(struct mm_struct *mm, int addr, BYTE value, struct pcb_t *caller)
 {
   int pgn = PAGING_PGN(addr);
 //int off = PAGING_OFFST(addr);
+  int off = addr & (PAGING64_PAGESZ - 1);
   int fpn;
 
   /* Get the page to MEMRAM, swap from MEMSWAP if needed */
   if (pg_getpage(mm, pgn, &fpn, caller) != 0)
     return -1; /* invalid page access */
 
-
   /* TODO 
    *  MEMPHY_write(caller->krnl->mram, phyaddr, value);
    *  MEMPHY WRITE with SYSMEM_IO_WRITE 
    * SYSCALL 17 sys_memmap
    */
+  if (MEMPHY_write(caller->krnl->mram, (addr_t)fpn * PAGING64_PAGESZ + off, value) != 0)
+    return -1;
 
   return 0;
 }
@@ -336,8 +370,9 @@ int __read(struct pcb_t *caller, int vmaid, int rgid, addr_t offset, BYTE *data)
 //struct vm_area_struct *cur_vma = get_vma_by_num(caller->krnl->mm, vmaid);
 
   /* TODO Invalid memory identify */
-
+  pthread_mutex_lock(&mmvm_lock);
   pg_getval(caller->krnl->mm, currg->rg_start + offset, data, caller);
+  pthread_mutex_unlock(&mmvm_lock);
 
   return 0;
 }
@@ -642,21 +677,36 @@ int free_pcb_memph(struct pcb_t *caller)
  */
 int find_victim_page(struct mm_struct *mm, addr_t *retpgn)
 {
-  struct pgn_t *pg = mm->fifo_pgn;
+  struct pgn_t *pg;
 
   /* TODO: Implement the theorical mechanism to find the victim page */
-  if (!pg)
+  if (mm == NULL || retpgn == NULL)
   {
     return -1;
   }
+
+  pg = mm->fifo_pgn;
+  if (pg == NULL)
+    return -1;
+
+  if (pg->pg_next == NULL)
+  {
+    *retpgn = pg->pgn;
+    mm->fifo_pgn = NULL;
+    free(pg);
+    return 0;
+  }
+
   struct pgn_t *prev = NULL;
-  while (pg->pg_next)
+  while (pg->pg_next != NULL)
   {
     prev = pg;
     pg = pg->pg_next;
   }
+
   *retpgn = pg->pgn;
-  prev->pg_next = NULL;
+  if (prev != NULL)
+    prev->pg_next = NULL;
 
   free(pg);
 
