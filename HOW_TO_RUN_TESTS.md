@@ -20,7 +20,7 @@ make --version
 ## Build
 Mở WSL, chuyển vào thư mục dự án và build:
 ```bash
-cd /mnt/c/Users/stephen-work/source/repos/HCMUT/btl-os/ossim_caitoa
+cd [path]/ossim_caitoa
 make all 2>&1 | tee build.log
 ls -l os
 ```
@@ -45,10 +45,10 @@ grep -A8 "MM64 statistics" run_os_1_mlq_paging.out > mm_stats_os_1_mlq_paging.tx
 ```
 Bằng chứng lưu: `run_os_1_mlq_paging.out`, `diff_os_1_mlq_paging.txt`, `mm_stats_os_1_mlq_paging.txt`.
 
-## Chạy tất cả test (tự động)
+## Chạy tất cả test (tự động) - Optional vì đã có files script run.sh được cung cấp mặc định rồi.
 Script đã có: `scripts/run_all_tests.sh` (đã tạo sẵn). Chạy trong WSL:
 ```bash
-cd /mnt/c/Users/stephen-work/source/repos/HCMUT/btl-os/ossim_caitoa
+cd [path]/ossim_caitoa
 bash scripts/run_all_tests.sh
 ```
 Output/ bằng chứng sẽ được lưu trong `evidence/`:
@@ -62,7 +62,7 @@ Nếu bạn muốn sử dụng script `run.sh` có sẵn để chạy tập lệ
 
 Chạy (WSL):
 ```bash
-cd /mnt/c/Users/stephen-work/source/repos/HCMUT/btl-os/ossim_caitoa
+cd [path]/ossim_caitoa
 # sao lưu expected hiện tại
 cp -r output output.expected.bak
 
