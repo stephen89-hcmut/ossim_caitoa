@@ -200,7 +200,7 @@ queue_empty (void)
 				}
 		}
 
-	return empty (&run_queue);
+	return 1;
 #else
 	return (empty (&ready_queue) && empty (&run_queue));
 #endif
@@ -287,11 +287,6 @@ get_mlq_proc (void)
 				}
 		}
 
-	if (proc == NULL)
-		{
-			proc = dequeue (&run_queue);
-		}
-
 	if (proc != NULL)
 		{
 			running_list_add (&running_list, proc);
@@ -331,7 +326,13 @@ put_mlq_proc (struct pcb_t *proc)
 
 	pthread_mutex_lock (&queue_lock);
 	running_list_remove (&running_list, proc);
-	enqueue (&run_queue, proc);
+
+	if (!valid_prio ((int) proc->prio))
+		{
+			proc->prio = MAX_PRIO - 1;
+		}
+
+	enqueue (&mlq_ready_queue[proc->prio], proc);
 	pthread_mutex_unlock (&queue_lock);
 }
 

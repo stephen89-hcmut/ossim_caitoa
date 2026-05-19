@@ -12,7 +12,7 @@
 !/input/**
 
 !/output/
-!/output/**
+/output/**
 
 !/src/
 !/src/**
@@ -33,5 +33,9 @@ Instructions.md
 
 # Optional: keep .gitattributes if present
 !/.gitattributes
+
+# Explicitly ignore srcv2
+/srcv2/
+/srcv2/**
 
 # End of .gitignore
