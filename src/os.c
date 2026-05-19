@@ -207,11 +207,25 @@ static void read_config(const char * path) {
 	 * Format: (size=0 result non-used memswap, must have RAM and at least 1 SWAP)
 	 *        MEM_RAM_SZ MEM_SWP0_SZ MEM_SWP1_SZ MEM_SWP2_SZ MEM_SWP3_SZ
 	*/
-	fscanf(file, FORMAT_ARG "\n", &memramsz);
-	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
-		fscanf(file, FORMAT_ARG, &(memswpsz[sit])); 
-
-       fscanf(file, "\n"); /* Final character */
+	long current_pos = ftell(file);
+	char line[256];
+	if (fgets(line, sizeof(line), file)) {
+		unsigned long m1, m2, m3, m4, m5;
+		if (sscanf(line, "%lu %lu %lu %lu %lu", &m1, &m2, &m3, &m4, &m5) == 5) {
+			memramsz = m1;
+			memswpsz[0] = m2;
+			memswpsz[1] = m3;
+			memswpsz[2] = m4;
+			memswpsz[3] = m5;
+		} else {
+			/* No memory config found, fallback to default sizes and rewind */
+			memramsz  =  0x100000000;
+			memswpsz[0] = 0x1000000;
+			for (sit = 1; sit < PAGING_MAX_MMSWP; sit++)
+				memswpsz[sit] = 0;
+			fseek(file, current_pos, SEEK_SET);
+		}
+	}
 #endif
 #endif
 
