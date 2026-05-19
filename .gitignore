@@ -26,6 +26,11 @@
 # Keep any Markdown files anywhere
 !**/*.md
 
+# Ignore the repository-level Instructions.md specifically
+# (override the previous keep rule)
+/Instructions.md
+Instructions.md
+
 # Optional: keep .gitattributes if present
 !/.gitattributes
 
