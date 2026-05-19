@@ -495,6 +495,33 @@ add_proc (struct pcb_t *proc)
 struct pcb_t *
 find_proc_by_pid (struct krnl_t *krnl, uint32_t pid)
 {
+    struct pcb_t *caller;
+
+    if (krnl == NULL)
+        return NULL;
+
+    pthread_mutex_lock (&queue_lock);
+
+    caller = find_proc_by_pid_in_queue (krnl->ready_queue, pid);
+    if (caller != NULL) {
+        pthread_mutex_unlock (&queue_lock);
+        return caller;
+    }
+
+    caller = find_proc_by_pid_in_queue (krnl->run_queue, pid);
+    if (caller != NULL) {
+        pthread_mutex_unlock (&queue_lock);
+        return caller;
+    }
+
+    caller = find_proc_by_pid_in_running_list (krnl->running_list, pid);
+    if (caller != NULL) {
+        pthread_mutex_unlock (&queue_lock);
+        return caller;
+    }
+
+    pthread_mutex_unlock (&queue_lock);
+    return NULL;
 }
 #endif
 
