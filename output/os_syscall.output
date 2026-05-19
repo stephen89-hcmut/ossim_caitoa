@@ -2,17 +2,17 @@ Time slot   0
 ld_routine
 Time slot   1
 	Loaded a process at input/proc/sc2, PID: 1 PRIO: 15
-	CPU 0: Dispatched process  1
 Time slot   2
-[MM] pg_getpage: pid=1 pgn=0 page_fault_cnt=1
+	CPU 0: Dispatched process  1
 Time slot   3
-	CPU 0: Put process  1 to run queue
-	CPU 0: Dispatched process  1
 Time slot   4
-Time slot   5
 	CPU 0: Put process  1 to run queue
 	CPU 0: Dispatched process  1
+Time slot   5
 Time slot   6
+	CPU 0: Put process  1 to run queue
+	CPU 0: Dispatched process  1
+Time slot   7
 	CPU 0: Processed  1 has finished
 	CPU 0 stopped
 MM64 statistics:

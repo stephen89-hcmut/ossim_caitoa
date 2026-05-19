@@ -1,0 +1,32 @@
+# Ignore everything by default
+/*
+
+# Keep this .gitignore
+!/.gitignore
+
+# Keep these top-level folders and all their contents
+!/include/
+!/include/**
+
+!/input/
+!/input/**
+
+!/output/
+!/output/**
+
+!/src/
+!/src/**
+
+# Keep run script and Makefile variants at repo root
+!/run.sh
+!/Makefile
+!/makefile
+!/Makefiles
+
+# Keep any Markdown files anywhere
+!**/*.md
+
+# Optional: keep .gitattributes if present
+!/.gitattributes
+
+# End of .gitignore
