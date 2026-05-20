@@ -12,7 +12,7 @@
 # ./os os_syscall_list > input/os_syscall_list.output
 # mv input/*.output output
 
-// This script runs all the test cases and saves their outputs to the output directory.
+# // This script runs all the test cases and saves their outputs to the output directory.
 TMP_OUT_DIR="/tmp/ossim_caitoa_run_outputs"
 rm -rf "$TMP_OUT_DIR"
 mkdir -p "$TMP_OUT_DIR"

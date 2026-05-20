@@ -23,7 +23,7 @@ Mục tiêu thực hành là hiểu luồng phối hợp giữa scheduler, memor
 make all
 ```
 
-Lệnh này biên dịch toàn bộ mã nguồn trong `src/`, đồng thời tạo file trung gian `src/syscalltbl.lst` từ `src/syscall.tbl` thông qua `src/syscalltbl.sh` trước khi link ra binary `os`.
+Lệnh này biên dịch toàn bộ mã nguồn trong [src/](src/), đồng thời tạo file trung gian [src/syscalltbl.lst](src/syscalltbl.lst) từ [src/syscall.tbl](src/syscall.tbl) thông qua [src/syscalltbl.sh](src/syscalltbl.sh) trước khi link ra binary os.
 
 Bạn có thể build trong VS Code terminal, terminal của IDE, hoặc terminal WSL. Nếu đang dùng Windows, nên mở repo bằng VS Code Remote - WSL hoặc chạy trong WSL Ubuntu để có sẵn `make`, `gcc` và các công cụ Unix chuẩn.
 
@@ -36,7 +36,7 @@ sudo apt install build-essential
 
 ### 2.2 Cách chạy tay
 
-Chạy mô phỏng bằng cách truyền tên cấu hình trong `input/`:
+Chạy mô phỏng bằng cách truyền tên cấu hình trong [input/](input/):
 
 ```bash
 ./os <ten_cau_hinh>
@@ -48,30 +48,28 @@ Ví dụ:
 ./os input/os_syscall
 ```
 
-Trong repo này, `src/os.c` là entry point chính và kỳ vọng nhận đúng tên file cấu hình từ thư mục `input/`.
+Trong repo này, [src/os.c](src/os.c) là entry point chính và kỳ vọng nhận đúng tên file cấu hình từ thư mục [input/](input/).
 
 ### 2.3 Cách chạy batch bằng `run.sh`
 
-Script `run.sh` dùng để chạy hàng loạt bộ test và ghi log ra file `.output`. Về ý tưởng, nó sẽ:
+Script [run.sh](run.sh) dùng để chạy hàng loạt bộ test và ghi log ra file .output. Về ý tưởng, nó sẽ:
 
-1. Gọi `./os` với từng cấu hình trong `input/`.
-2. Chuyển stdout sang file `.output` tương ứng.
-3. Gom các file kết quả vào thư mục `output/` để so sánh với output mẫu.
+1. Gọi ./os với từng cấu hình trong [input/](input/).
+2. Chuyển stdout sang file .output tương ứng.
+3. Gom các file kết quả vào thư mục [output/](output/) để so sánh với output mẫu.
 
 Đây là cách thuận tiện nhất khi bạn muốn chạy hồi quy sau mỗi lần sửa code.
 
 ## 3. Cấu hình build hiện tại
 
-Repo hiện đang bật các macro quan trọng trong `include/os-cfg.h`:
+Repo hiện đang bật các macro quan trọng trong [include/os-cfg.h](include/os-cfg.h):
 
-- `MLQ_SCHED`
-- `MM_PAGING`
-- `MM64`
-- `MAX_PRIO 140`
-- `IODUMP 1`
-- `PAGETBL_DUMP 1`
+- MLQ_SCHED = 1
+- MAX_PRIO = 140
+- MM_PAGING
+- MM64 = 1
 
-Các macro đang tắt là `MM_FIXED_MEMSZ`, `VMDBG`, `MMDBG`. Nghĩa là repo đang chạy theo chế độ MLQ + paging + MM64, không phải chế độ memory cố định của Phase 1.
+Các macro đang tắt: MM_FIXED_MEMSZ, VMDBG, MMDBG, IODUMP, PAGETBL_DUMP. Nghĩa là repo đang chạy theo chế độ MLQ + paging + MM64, không bật dump I/O hoặc page table.
 
 ## 4. Cấu trúc thư mục
 
@@ -80,57 +78,55 @@ Các macro đang tắt là `MM_FIXED_MEMSZ`, `VMDBG`, `MMDBG`. Nghĩa là repo �
 ├── Makefile
 ├── run.sh
 ├── README.md
-├── Instructions.md
-├── CO2018_ossim_caitoa.pdf
 ├── include/
 ├── input/
 ├── output/
 └── src/
 ```
 
-### 4.1 `include/`
+### 4.1 include
 
 Đây là lớp blueprint của hệ điều hành. Các header chính gồm:
 
-- `os-cfg.h`: macro cấu hình build, bật/tắt MLQ, paging, MM64 và debug.
-- `common.h`: kiểu dữ liệu chung, opcode, `pcb_t`, `krnl_t`, code segment và thanh ghi.
-- `queue.h`: định nghĩa queue tiến trình và API enqueue/dequeue/purge/empty.
-- `sched.h`: giao diện scheduler: init, finish, add, put, get.
-- `os-mm.h`: cấu trúc quản lý bộ nhớ ảo, VMA, vùng nhớ rỗng, mm_struct, memphy.
-- `mm.h`: đặc tả paging 32-bit và giao tiếp với RAM/SWAP vật lý.
-- `mm64.h`: đặc tả paging nhiều tầng 64-bit.
-- `mem.h`: giao diện memory cố định khi bật `MM_FIXED_MEMSZ`.
-- `libmem.h`: wrapper phía user space cho alloc/free/read/write và các syscall bộ nhớ nâng cao.
-- `syscall.h`: register frame của syscall, bảng tên syscall, và interface `_syscall`.
-- `loader.h`: giao diện nạp chương trình từ file kịch bản tiến trình.
-- `cpu.h`: giao diện chạy một tiến trình trên CPU ảo.
-- `timer.h`: đồng bộ thời gian và điều phối slot giữa các CPU ảo.
+- [include/os-cfg.h](include/os-cfg.h): macro cấu hình build, bật/tắt MLQ, paging, MM64 và debug.
+- [include/common.h](include/common.h): kiểu dữ liệu chung, opcode, pcb_t, krnl_t, code segment và thanh ghi.
+- [include/queue.h](include/queue.h): định nghĩa queue tiến trình và API enqueue/dequeue/purge/empty.
+- [include/sched.h](include/sched.h): giao diện scheduler: init, finish, add, put, get.
+- [include/os-mm.h](include/os-mm.h): cấu trúc quản lý bộ nhớ ảo, VMA, vùng nhớ rỗng, mm_struct, memphy.
+- [include/mm.h](include/mm.h): đặc tả paging 32-bit và giao tiếp với RAM/SWAP vật lý.
+- [include/mm64.h](include/mm64.h): đặc tả paging nhiều tầng 64-bit.
+- [include/mem.h](include/mem.h): giao diện memory cố định khi bật MM_FIXED_MEMSZ.
+- [include/libmem.h](include/libmem.h): wrapper phía user space cho alloc/free/read/write và các syscall bộ nhớ nâng cao.
+- [include/syscall.h](include/syscall.h): register frame của syscall, bảng tên syscall, và interface _syscall.
+- [include/loader.h](include/loader.h): giao diện nạp chương trình từ file kịch bản tiến trình.
+- [include/cpu.h](include/cpu.h): giao diện chạy một tiến trình trên CPU ảo.
+- [include/timer.h](include/timer.h): đồng bộ thời gian và điều phối slot giữa các CPU ảo.
 
-### 4.2 `src/`
+### 4.2 src
 
 Đây là phần cài đặt thực tế của hệ điều hành mô phỏng:
 
-- `os.c`: entry point, đọc config, khởi tạo kernel, CPU, timer, loader và scheduler.
-- `cpu.c`: vòng lặp fetch-decode-execute của CPU ảo.
-- `timer.c`: bộ đếm thời gian và đồng bộ đa CPU.
-- `loader.c`: nạp file tiến trình thành `pcb_t`.
-- `queue.c`: hiện thực các thao tác trên hàng đợi tiến trình.
-- `sched.c`: scheduler MLQ và lựa chọn tiến trình theo priority/time slice.
-- `mm-memphy.c`: quản lý khung trang vật lý, RAM/SWAP và các thao tác đọc/ghi mức thấp.
-- `mm-vm.c`: quản lý không gian địa chỉ ảo và vùng nhớ của từng process.
-- `mm.c`: module paging 32-bit cũ, hiện phục vụ tương thích hoặc tham chiếu.
-- `mm64.c`: paging 64-bit nhiều tầng.
-- `paging.c`: trình kiểm thử độc lập cho module paging.
-- `mem.c`: bộ nhớ cố định cũ dùng khi bật `MM_FIXED_MEMSZ`.
-- `libmem.c`: wrapper bộ nhớ phía userspace.
-- `libstd.c`: wrapper syscall phía userspace.
-- `syscall.c`: trung tâm điều phối syscall và bảng tên syscall.
-- `sys_listsyscall.c`: handler cho syscall liệt kê danh sách syscall.
-- `sys_mem.c`: handler syscall quản lý bộ nhớ.
-- `syscall.tbl`: bảng khai báo syscall.
-- `syscalltbl.sh`: script sinh file danh sách syscall cho build.
+- [src/os.c](src/os.c): entry point, đọc config, khởi tạo kernel, CPU, timer, loader và scheduler.
+- [src/cpu.c](src/cpu.c): vòng lặp fetch-decode-execute của CPU ảo.
+- [src/timer.c](src/timer.c): bộ đếm thời gian và đồng bộ đa CPU.
+- [src/loader.c](src/loader.c): nạp file tiến trình thành pcb_t.
+- [src/queue.c](src/queue.c): hiện thực các thao tác trên hàng đợi tiến trình.
+- [src/sched.c](src/sched.c): scheduler MLQ và lựa chọn tiến trình theo priority/time slice.
+- [src/mm-memphy.c](src/mm-memphy.c): quản lý khung trang vật lý, RAM/SWAP và các thao tác đọc/ghi mức thấp.
+- [src/mm-vm.c](src/mm-vm.c): quản lý không gian địa chỉ ảo và vùng nhớ của từng process.
+- [src/mm.c](src/mm.c): module paging 32-bit cũ, hiện phục vụ tương thích hoặc tham chiếu.
+- [src/mm64.c](src/mm64.c): paging 64-bit nhiều tầng.
+- [src/paging.c](src/paging.c): trình kiểm thử độc lập cho module paging.
+- [src/mem.c](src/mem.c): bộ nhớ cố định cũ dùng khi bật MM_FIXED_MEMSZ.
+- [src/libmem.c](src/libmem.c): wrapper bộ nhớ phía userspace.
+- [src/libstd.c](src/libstd.c): wrapper syscall phía userspace.
+- [src/syscall.c](src/syscall.c): trung tâm điều phối syscall và bảng tên syscall.
+- [src/sys_listsyscall.c](src/sys_listsyscall.c): handler cho syscall liệt kê danh sách syscall.
+- [src/sys_mem.c](src/sys_mem.c): handler syscall quản lý bộ nhớ.
+- [src/syscall.tbl](src/syscall.tbl): bảng khai báo syscall.
+- [src/syscalltbl.sh](src/syscalltbl.sh): script sinh file danh sách syscall cho build.
 
-### 4.3 `input/`
+### 4.3 input
 
 Thư mục này chứa toàn bộ dữ liệu đầu vào để chạy mô phỏng:
 
@@ -138,13 +134,13 @@ Thư mục này chứa toàn bộ dữ liệu đầu vào để chạy mô phỏ
 - `input/sched*`: các cấu hình phục vụ Phase 1 scheduler.
 - `input/os_*`: các cấu hình tích hợp scheduler + memory + syscall theo từng phase.
 
-### 4.4 `output/`
+### 4.4 output
 
-Thư mục này chứa các kết quả mẫu hoặc kết quả đã chạy xong để đối chiếu với output kỳ vọng của đề.
+Thư mục này chứa các kết quả sinh ra từ [run.sh](run.sh). Các file .output được sinh tự động và đang được ignore bởi git, nhưng vẫn dùng để đối chiếu khi chạy test cục bộ.
 
 ## 5. Format dữ liệu đầu vào
 
-### 5.1 File tiến trình trong `input/proc/`
+### 5.1 File tiến trình trong input/proc
 
 Mỗi file tiến trình có dạng chung:
 
@@ -162,7 +158,7 @@ Trong đó:
 - `N` là số lượng lệnh.
 - Các lệnh thường gặp gồm `CALC`, `ALLOC`, `FREE`, `READ`, `WRITE`, `KMALLOC`, `KMEM_CACHE_CREATE`, `KMEM_CACHE_ALLOC`, `COPY_FROM_USER`, `COPY_TO_USER`, `SYSCALL`.
 
-### 5.2 File cấu hình hệ điều hành trong `input/`
+### 5.2 File cấu hình hệ điều hành trong input
 
 Dạng tổng quát là:
 
@@ -183,22 +179,22 @@ Mục tiêu của phase này là kiểm tra MLQ scheduler, round-robin, preempti
 
 Các file cấu hình chính:
 
-- `input/sched`
-- `input/sched_0`
-- `input/sched_1`
-- `input/os_1_singleCPU_mlq`
+- [input/sched](input/sched)
+- [input/sched_0](input/sched_0)
+- [input/sched_1](input/sched_1)
+- [input/os_1_singleCPU_mlq](input/os_1_singleCPU_mlq)
 
 Các file tiến trình thường dùng:
 
-- `input/proc/s0` đến `s4`
-- `input/proc/p1s`, `p2s`, `p3s`
+- [input/proc/s0](input/proc/s0) đến [input/proc/s4](input/proc/s4)
+- [input/proc/p1s](input/proc/p1s), [input/proc/p2s](input/proc/p2s), [input/proc/p3s](input/proc/p3s)
 
 Output tương ứng thường là:
 
-- `input/sched.output`
-- `input/sched_0.output`
-- `input/sched_1.output`
-- `input/os_1_singleCPU_mlq.output`
+- [output/sched.output](output/sched.output)
+- [output/sched_0.output](output/sched_0.output)
+- [output/sched_1.output](output/sched_1.output)
+- [output/os_1_singleCPU_mlq.output](output/os_1_singleCPU_mlq.output)
 
 ### Phase 2: Memory Management
 
@@ -206,31 +202,31 @@ Phase này bật paging và kiểm tra phân trang, swap, và MM64.
 
 #### 2a. Paging 32-bit chuẩn
 
-- `input/os_0_mlq_paging`
-- `input/os_1_mlq_paging`
-- `input/os_1_singleCPU_mlq_paging`
+- [input/os_0_mlq_paging](input/os_0_mlq_paging)
+- [input/os_1_mlq_paging](input/os_1_mlq_paging)
+- [input/os_1_singleCPU_mlq_paging](input/os_1_singleCPU_mlq_paging)
 
 Các file tiến trình thường đi kèm:
 
-- `input/proc/m0s`
-- `input/proc/m1s`
-- `input/proc/p0s`
+- [input/proc/m0s](input/proc/m0s)
+- [input/proc/m1s](input/proc/m1s)
+- [input/proc/p0s](input/proc/p0s)
 
 #### 2b. RAM nhỏ và swap
 
-- `input/os_1_mlq_paging_small_1K`
-- `input/os_1_mlq_paging_small_4K`
+- [input/os_1_mlq_paging_small_1K](input/os_1_mlq_paging_small_1K)
+- [input/os_1_mlq_paging_small_4K](input/os_1_mlq_paging_small_4K)
 
 Mục tiêu là ép hệ thống swap liên tục để kiểm tra thuật toán thay trang.
 
 #### 2c. Paging 64-bit nhiều tầng
 
-- `input/os_2_mlq_paging`
-- `input/os_2_singleCPU_mlq_paging`
+- [input/os_2_mlq_paging](input/os_2_mlq_paging)
+- [input/os_2_singleCPU_mlq_paging](input/os_2_singleCPU_mlq_paging)
 
 Tiến trình đặc trưng:
 
-- `input/proc/m2s`
+- [input/proc/m2s](input/proc/m2s)
 
 Phase này kiểm tra kmalloc, cache, copy_from_user và copy_to_user qua syscall nội bộ.
 
@@ -240,26 +236,32 @@ Mục tiêu là kiểm tra syscall interface, bảng syscall và khả năng th�
 
 Các file cấu hình chính:
 
-- `input/os_syscall_list`
-- `input/os_syscall`
-- `input/os_sc`
+- [input/os_syscall_list](input/os_syscall_list)
+- [input/os_syscall](input/os_syscall)
+- [input/os_sc](input/os_sc)
 
 Các tiến trình kiểm thử:
 
-- `input/proc/sc1`
-- `input/proc/sc2`
-- `input/proc/sc3`
+- [input/proc/sc1](input/proc/sc1)
+- [input/proc/sc2](input/proc/sc2)
+- [input/proc/sc3](input/proc/sc3)
 
 Output đối chiếu tương ứng:
 
-- `input/os_syscall_list.output`
-- `input/os_syscall.output`
-- `input/os_sc.output`
+- [output/os_syscall_list.output](output/os_syscall_list.output)
+- [output/os_syscall.output](output/os_syscall.output)
+- [output/os_sc.output](output/os_sc.output)
 
 ## 7. Quy trình làm việc khuyến nghị
 
-1. Sửa code trong `src/` theo đúng module cần làm.
-2. Chạy `make all` để build lại toàn bộ hệ thống.
+1. Sửa code trong [src/](src/) theo đúng module cần làm.
+2. Chạy make all để build lại toàn bộ hệ thống.
+
+## 8. Tài liệu liên quan
+- [QUESTIONS.md](QUESTIONS.md)
+- [REPORT.md](REPORT.md)
+- [ReportNew.md](ReportNew.md)
+- [flow.md](flow.md)
 3. Chạy `./os <config>` cho từng case cần kiểm tra nhanh.
 4. Chạy `./run.sh` để sinh hoặc refresh toàn bộ output.
 5. So sánh file kết quả trong `output/` với output mẫu của đề.

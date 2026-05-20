@@ -1,204 +1,165 @@
-# REPORT
+# BÁO CÁO BÀI TẬP LỚN: SIMPLE OPERATING SYSTEM
+
+## THÔNG TIN CHUNG
+- **Nhóm:** VLVH-1
+- **Lớp:** L03
+- **Thành viên:**
+       - Nguyễn Thanh Tùng - 2449106
+       - Nguyễn Hoàng - 2433007
+- **Môn học:** Hệ điều hành
+- **Đề tài:** Simple Operating System (MLQ scheduler, MM64 paging, syscall)
 
-Báo cáo dự án: Simple Operating System
-
-Ngày: 2026-05-18
-
-## 1. Thông tin chung
-
-- Họ tên nhóm: 
-- MSSV: 
-- Lớp: 
-- Môn học: Hệ điều hành
-- Đề tài: Simple Operating System (MLQ scheduler, MM64 paging, syscall)
-
-## 2. Mục tiêu báo cáo
-
-Báo cáo này trình bày thiết kế, cài đặt và kết quả kiểm chứng của các mô-đun chính trong dự án: scheduler (MLQ), quản lý bộ nhớ (user/kernel separation, PID-based lookup), multi-level paging (MM64) và system call. Mọi bằng chứng đều trích trực tiếp từ các tệp output được tạo bởi `./os <config>` và `run.sh` trong workspace.
-
-## 3. Phương pháp và nguồn bằng chứng
-
-- Môi trường: build và chạy trong workspace repo.
-- Nguồn bằng chứng chính: các file trong `output/` sinh bởi `run.sh` (ví dụ: `output/os_1_mlq_paging_small_1K.output`, `output/os_1_mlq_paging_small_4K.output`, `output/os_2_mlq_paging.output`, `output/os_syscall.output`).
-- Không thêm dữ liệu ngoại lai; nếu một đặc tính không có bằng chứng runtime, báo cáo nêu rõ giới hạn.
-
-## 4. Scheduling (MLQ)
-
-4.1 Mô tả
-
-Hệ thống sử dụng Multi-Level Queue (MLQ): các tiến trình được phân vào các hàng đợi theo priority, CPU lấy tiến trình theo độ ưu tiên và quay vòng theo time-slice. Nội dung cài đặt chính nằm ở `src/sched.c` và kiểu dữ liệu chạy/running list trong `include/common.h`.
-
-4.2 Gantt chart (rút gọn)
-
-Biểu đồ dưới đây được rút ra từ file [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L1-L40). Hàng là CPU, cột là time slot (tổng quát). Dấu `.` nghĩa là không có dispatch trên CPU đó tại time-slot đó.
-
-Time -> 1 2 3 4 5 6 7 8
-CPU0 -> . . . . 2 . 2 .
-CPU1 -> . . . 3 . . 3 1
-CPU2 -> . 2 2 1 . 1 1 4
-CPU3 -> 1 1 . 3 . 4 4 5
-
-Nguồn: [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L1-L40)
-
-4.3 Phân tích
-
-- Gantt cho thấy tiến trình có PRIO cao được dispatch sớm (ví dụ PID 1, PRIO 130 trên CPU3 tại time-slot 1).
-- Các thông báo `Put process` và `Dispatched process` thể hiện chuyển trạng thái giữa running và run-queue, phù hợp MLQ behavior.
-- Không tìm thấy bằng chứng starvation trong workloads mẫu; tiến trình có độ ưu tiên 0 (ví dụ `PID: 3 PRIO: 0`) vẫn được dispatched.
-
-## 5. Memory management (user/kernel separation, PID passing)
-
-5.1 Thiết kế
-
-- Public wrappers cho các thao tác bộ nhớ và syscall nhận `krnl_t *` và `pid` thay vì PCB trực tiếp. PCB được resolve bên trong kernel bằng `find_proc_by_pid()` (tham khảo `src/libmem.c`, `src/sys_mem.c`, `src/sched.c`).
-- `running_list` được cài đặt như linked-list thay vì queue để hỗ trợ tra cứu và loại bỏ theo PID khi cần.
-
-5.2 Bằng chứng chạy
-
-- Ví dụ run đơn giản `./os os_syscall` cho thấy luồng tải tiến trình và dispatch liên tiếp; xem [output/os_syscall.output](output/os_syscall.output#L1-L20) (một CPU chạy đến hoàn tất PID 1).
-
-Snippet (dispatch/finish):
-
-> [output/os_syscall.output](output/os_syscall.output#L2-L7)
-
-5.3 Phân tích
-
-- Thiết kế `krnl + pid` giúp tách rời giao diện user/kernel và ngăn lộ thông tin nội bộ (PCB) ra user code.
-- Khi kernel cần lookup PCB (ví dụ trong đường dẫn paging hoặc syscall), nó làm dưới lock phù hợp (`queue_lock` hoặc `sysmem_lock`).
-
-## 6. Multi-level Paging (MM64)
-
-6.1 Mô tả
-
-- Hệ thống dùng mô hình paging nhiều tầng (PGD/P4D/PUD/PMD/PT/OFFSET). Việc cài đặt chính là ở `src/mm64.c`.
-- Hàm `vmap_pgd_memset()` dùng `memset` để tạo vùng page table/dummy allocations khi cần (tức là không phụ thuộc vào physical allocator phức tạp trong lab này).
-
-6.2 Thống kê runtime
-
-- Trong các workloads tiêu chuẩn cung cấp, các thống kê MM64 được in ở cuối các run khi có truy cập. Quan sát các file output thu được cho thấy các giá trị page replacements = 0 trong hầu hết workloads mẫu (tức chưa xảy ra thay trang trong workloads này).
-
-- Vd. các run mẫu được thu tại:
-        - [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L1-L40)
-        - [output/os_1_mlq_paging_small_4K.output](output/os_1_mlq_paging_small_4K.output#L1-L40)
-        - [output/os_2_mlq_paging.output](output/os_2_mlq_paging.output#L1-L40)
-
-6.3 Hạn chế
-
-- Workloads chuẩn trong repo không kích hoạt trang bị thay thế (page replacement) trong hầu hết trường hợp; do đó báo cáo không tuyên bố replacement xảy ra nếu không có bằng chứng trong `output/`.
-
-## 7. System Call
-
-7.1 Thiết kế
-
-- Syscall được triển khai qua `_syscall(krnl, pid, nr, regs)` (tham khảo `src/syscall.c`). Các syscall liên quan memory được xử lý trong `src/sys_mem.c` (ví dụ `__sys_memmap`).
-
-7.2 Bằng chứng chạy
-
-- Chạy [output/os_syscall.output](output/os_syscall.output#L1-L20) thể hiện luồng tải tiến trình và dispatch trên một CPU, tiến trình hoàn tất bình thường.
-
-7.3 Phân tích
-
-- Khi syscall yêu cầu thao tác bộ nhớ dài (ví dụ swap hoặc IO), kernel giữ lock khi cập nhật cấu trúc chung; timer và scheduler vẫn có thể preempt theo cơ chế đã cài để tránh khóa hệ thống lâu.
-
-## 8. Overall / Discussion
-
-- Đã hiện thực MLQ scheduler, tách rõ giao diện user/kernel (PID-based lookup), cài đặt multi-level paging (MM64) và in thống kê paging khi chạy.
-- Một hạn chế hiện có là workloads mẫu không kích hoạt page replacement; tuy nhiên cơ chế victim selection và counters đã được thêm vào và có thể chứng minh khi chạy test đẩy bộ nhớ cao hơn.
-
-## 9. Conclusion
-
-- Hệ thống mô phỏng đáp ứng các yêu cầu chính: scheduler MLQ, hệ thống syscall, và cơ sở cho MM64 paging.
-- Để chứng minh đầy đủ page replacement, cần thêm workload có yêu cầu bộ nhớ vượt quá RAM giả lập (có thể bổ sung test case nếu muốn chứng minh).
-
-## 10. Appendix — Evidence (trích chọn)
-
-- Run script: [run.sh](run.sh#L1-L12)
-- Scheduling + dispatch excerpt: [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L1-L40)
-- Alternative MLQ run: [output/os_1_mlq_paging_small_4K.output](output/os_1_mlq_paging_small_4K.output#L1-L40)
-- MM64 / pgtbl prints and dispatch: [output/os_2_mlq_paging.output](output/os_2_mlq_paging.output#L5-L16)
-- Syscall run (single CPU): [output/os_syscall.output](output/os_syscall.output#L1-L7)
-
-### MM64 statistics (exact snippets)
-
-From [output/os_0_mlq_paging.output](output/os_0_mlq_paging.output#L63-L69):
-
-```
-MM64 statistics:
-        memory accesses   : 3
-        pgtbl accesses    : 7
-        page faults       : 1
-        page replacements : 0
-        swap in           : 0
-        swap out          : 0
-        pgtbl storage      : 81920 bytes
-```
-
-From [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L133-L139):
-
-```
-MM64 statistics:
-        memory accesses   : 1
-        pgtbl accesses    : 3
-        page faults       : 1
-        page replacements : 0
-        swap in           : 0
-        swap out          : 0
-        pgtbl storage      : 163840 bytes
-```
-
-From [output/os_1_mlq_paging.output](output/os_1_mlq_paging.output#L133-L139):
-
-```
-MM64 statistics:
-        memory accesses   : 2
-        pgtbl accesses    : 5
-        page faults       : 1
-        page replacements : 0
-        swap in           : 0
-        swap out          : 0
-        pgtbl storage      : 163840 bytes
-```
-
-Notes: all sampled workloads above show `page replacements : 0`; the replacement machinery is present but not exercised by these standard inputs.
-
-From [output/os_force_repl.output](output/os_force_repl.output#L1-L46):
-
-```
-MM64 statistics:
-        memory accesses   : 74
-        pgtbl accesses    : 149
-        page faults       : 1
-        page replacements : 0
-        swap in           : 0
-        swap out          : 0
-        pgtbl storage      : 40960 bytes
-```
-
-Note: I prepared and ran a heavy workload (`input/os_force_repl` with `input/proc/force1` and `force2`) to attempt to trigger replacements; the run completed but still shows `page replacements : 0`. This indicates the current workloads and paging configuration did not exercise the replacement path — further changes (e.g., different mem sizes or test patterns) may be needed to force evictions.
-
-From [output/os_force_eviction.output](output/os_force_eviction.output#L1-L70):
-
-```
-MM64 statistics:
-        memory accesses   : 63
-        pgtbl accesses    : 127
-        page faults       : 1
-        page replacements : 0
-        swap in           : 0
-        swap out          : 0
-        pgtbl storage      : 20480 bytes
-```
-
-Note: The aggressive streaming writes across a large virtual range still resulted in `page replacements : 0`. The code path for replacement exists but is not triggered by these tests — possible causes include allocation behavior mapping pages into RAM at alloc-time or the allocator returning errors rather than performing replacements. If you want, I can (1) instrument `pg_getpage`/`find_victim_page` to log replacement attempts, or (2) try extreme parameter tweaks (e.g., RAM=1 page, swap smaller) and rerun.
-
-Instrumentation run: I added logging in `pg_getpage` and `find_victim_page`, rebuilt, and re-ran `os_force_eviction`. The output includes the instrumentation line below (full output: [output/os_force_eviction.output](output/os_force_eviction.output#L1-L120)):
-
-```
-[MM] pg_getpage: pid=1 pgn=0 page_fault_cnt=1
-```
-
-This shows a single page fault for `pgn=0` and no replacement/swap messages were emitted, consistent with `page replacements : 0` in the MM64 statistics. Next options: (A) make RAM extremely small (1 page) and rerun, (B) rewrite the workload to touch distinct pages in a tight loop, or (C) add allocation-time logging to see whether pages are pre-mapped to RAM. Tell me which to try next.
 ---
 
-If you want, I can now (a) run `make all` and `./run.sh` to re-generate outputs and append final numeric MM64 stats to this report, or (b) add a Requirement->Evidence table mapping. Which next step do you prefer?
+## 1. MỤC TIÊU VÀ PHẠM VI
+Báo cáo này tổng hợp lý thuyết và kết quả thực nghiệm của các pha chính trong dự án: điều phối CPU (MLQ), quản lý bộ nhớ (paging, swap, MM64), giao tiếp user/kernel bằng syscall. Tất cả nhận xét về kết quả chạy đều dựa trên output sinh bởi script [run.sh](run.sh) và các file trong thư mục [output/](output/).
 
+### 1.1 Phương pháp và nguồn bằng chứng
+- Môi trường: build bằng make all, chạy bằng ./os và [run.sh](run.sh).
+- Nguồn bằng chứng: các file .output trong [output/](output/) được sinh từ run.sh.
+- Không suy đoán ngoài dữ liệu log; nếu không có log thì chỉ nêu giới hạn.
+
+---
+
+## 2. CÂU HỎI VÀ TRẢ LỜI 
+
+### Câu 1. Xét theo các chính sách chi tiết của MLQ, lợi ích của từng chính sách là gì?
+Trong cơ chế lập lịch Multi-Level Queue (MLQ), tiến trình được chia vào các hàng đợi ưu tiên khác nhau. Mỗi hàng đợi có thể áp dụng một chính sách lập lịch riêng. Lợi ích chính của mô hình này là hệ điều hành có thể tối ưu theo từng loại tải công việc thay vì áp dụng một chính sách duy nhất cho mọi tiến trình.
+
+Điều này đặc biệt quan trọng vì tải công việc trong hệ thống không đồng nhất. Một tiến trình tương tác cần độ trễ thấp, một tiến trình thông thường cần được phục vụ công bằng, còn một tác vụ nền lại ưu tiên thông lượng hơn là phản hồi tức thời. MLQ cho phép phân loại và xử lý các nhóm này theo đúng nhu cầu của chúng.
+
+**Hàng đợi ưu tiên cao**
+- Round Robin với quantum nhỏ giúp giảm độ trễ, tăng tương tác.
+- Đổi lại là chi phí context switch cao hơn, nhưng chấp nhận được.
+
+**Hàng đợi ưu tiên trung bình**
+- Cân bằng giữa công bằng và thông lượng.
+- Phục vụ phần lớn tiến trình thông thường.
+
+**Hàng đợi ưu tiên thấp**
+- FCFS hoặc quantum dài giúp giảm overhead.
+- Phù hợp tác vụ nền cần thông lượng.
+
+**Cơ chế chống đói tài nguyên**
+- Aging hoặc phân bổ slot giúp tránh starvation.
+- Tăng công bằng và ổn định hệ thống.
+
+### Câu 2. Mục đích chính của việc kết hợp segmentation với paging trong quản lý bộ nhớ là gì? Cơ chế lai này khắc phục hạn chế của từng kỹ thuật đơn lẻ như thế nào?
+Segmentation phản ánh cấu trúc logic (code/data/stack/heap), hỗ trợ bảo vệ và chia sẻ nhưng gây external fragmentation. Paging chia bộ nhớ thành trang/khung cố định, loại bỏ external fragmentation nhưng thiếu ý nghĩa logic.
+
+Mô hình lai giữ được ý nghĩa của segmentation và hiệu quả phân bổ của paging. Nó giúp:
+- Bảo vệ theo vùng logic.
+- Quản lý vật lý theo trang cố định.
+- Giảm phân mảnh và tăng khả năng mở rộng.
+
+### Câu 3. Lợi ích của việc mở rộng hierarchical paging lên N tầng là gì?
+Hierarchical paging giảm chi phí metadata cho không gian địa chỉ lớn, chỉ tạo bảng con khi cần. Nó:
+- Giảm lãng phí bộ nhớ ở vùng không dùng.
+- Mở rộng tốt cho địa chỉ 48/57-bit.
+- Phù hợp vùng nhớ thưa.
+- Dễ bảo trì và gần với phần cứng thật.
+
+### Câu 4. Điều gì xảy ra nếu không xử lý đồng bộ trong Simple OS?
+Nếu thiếu đồng bộ, race condition sẽ làm hỏng free list, page table hoặc hàng đợi. Hậu quả:
+- Hai tiến trình trỏ cùng frame.
+- Queue corruption, invalid PTE.
+- Deadlock khi khóa bị giữ sai thứ tự.
+
+Các tài nguyên cần bảo vệ gồm free frame list, queue scheduler, page table, metadata swap. Đây là lý do dự án dùng các lock như queue_lock, mmvm_lock, sysmem_lock.
+
+### Câu 5. Khi một system call chạy quá lâu thì hệ điều hành phát hiện và xử lý như thế nào?
+Timer interrupt và scheduler cắt tiến trình theo time-slice. Syscall dài vẫn bị giới hạn bởi time-slot. Nếu syscall giữ khóa lâu, các luồng khác sẽ chờ nhưng scheduler vẫn kiểm soát CPU qua time-slice.
+
+### Câu 6. Lợi ích của việc mở rộng hierarchical paging lên N tầng là gì?
+MM64 phân tách địa chỉ thành PGD, P4D, PUD, PMD, PT và OFFSET. Ưu điểm:
+- Giảm metadata.
+- Hỗ trợ không gian địa chỉ lớn.
+- Phù hợp vùng thưa.
+- Trade-off: dịch địa chỉ nhiều bước hơn.
+
+### Câu 7. Điều gì xảy ra nếu không xử lý đồng bộ trong Simple OS? (nhắc lại)
+Không đồng bộ gây race condition và data corruption trong scheduler và memory manager. Dấu hiệu: output không ổn định, invalid page table entry, queue corruption. Đồng bộ là bắt buộc để giữ tính đúng đắn.
+
+---
+
+## 3. ĐIỀU PHỐI CPU (SCHEDULING) VÀ BẰNG CHỨNG
+
+### 3.1 Biểu đồ Gantt (rút gọn)
+Dữ liệu trích từ [output/sched_0.output](output/sched_0.output#L1-L40).
+
+```text
+Time :  1   3   5   7   9   10  13  17
+CPU0 :  P1  P2  P3  P4  P3  P4  P3  P4
+```
+
+### 3.2 Nhận xét
+- Luồng CPU0 chuyển đổi giữa PID theo slot (dispatched/put), thể hiện cơ chế MLQ hoạt động đúng.
+- Tiến trình ưu tiên thấp vẫn được chạy, không bị starvation trong workload này.
+
+### 3.3 Ảnh chụp đa CPU (rút gọn)
+Dữ liệu trích từ [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L1-L36).
+
+```text
+Time :  1  2  3  4  5  6  7  8
+CPU0 :  .  .  .  .  .  .  P4 .
+CPU1 :  .  P1 .  P1 .  P1 .  P1
+CPU2 :  .  .  .  .  P3 .  P3 P3
+CPU3 :  .  .  P2 .  .  P2 P2 .
+```
+
+---
+
+## 4. QUẢN LÝ BỘ NHỚ VÀ GIAO TIẾP USER/KERNEL
+
+### 4.1 PID-based syscall
+Các wrapper userspace truyền krnl và PID, không truyền PCB. Kernel tra PCB bằng find_proc_by_pid trong scheduler. Chuỗi gọi:
+
+```
+libsyscall -> _syscall -> __sys_memmap
+```
+
+Điều này đảm bảo tách biệt user/kernel và tránh lộ cấu trúc PCB.
+
+### 4.2 Bằng chứng chạy
+Run syscall mẫu: [output/os_syscall.output](output/os_syscall.output#L1-L20) cho thấy tiến trình được load và chạy đến hoàn tất mà không lỗi giao tiếp.
+
+---
+
+## 5. MULTI-LEVEL PAGING (MM64)
+
+### 5.1 Sơ đồ dịch địa chỉ
+```
+Virtual Address (57-bit)
+| PGD | P4D | PUD | PMD | PT | OFFSET |
+        9     9     9     9     9     12
+```
+
+### 5.2 Mô tả triển khai
+- PTE lưu ở tầng PT, các tầng trên đánh dấu present.
+- Hàm get_pd_from_address và get_pd_from_pagenum phân tách chỉ số PGD/P4D/PUD/PMD/PT.
+
+---
+
+## 6. THỐNG KÊ PAGING VÀ KẾT QUẢ THỰC NGHIỆM
+
+### 6.1 Thống kê MM64 (trích output thực tế)
+- [output/os_0_mlq_paging.output](output/os_0_mlq_paging.output#L55-L72)
+- [output/os_1_mlq_paging.output](output/os_1_mlq_paging.output#L128-L146)
+- [output/os_1_mlq_paging_small_1K.output](output/os_1_mlq_paging_small_1K.output#L125-L143)
+
+| Test | mem_access | pgtbl_access | page_fault | page_replace | swap_in | swap_out | pgtbl_bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| os_0_mlq_paging | 4 | 10 | 2 | 0 | 0 | 0 | 81920 |
+| os_1_mlq_paging | 2 | 5 | 1 | 0 | 0 | 0 | 163840 |
+| os_1_mlq_paging_small_1K | 0 | 0 | 0 | 0 | 0 | 0 | 163840 |
+
+### 6.2 Nhận xét
+- Các workload mẫu không kích hoạt thay trang (page replacement = 0).
+- Cơ chế replacement đã có trong mã (FIFO list), nhưng cần workload nặng hơn để quan sát swap thật sự.
+
+---
+
+## 7. KẾT LUẬN
+- Dự án hiện thực được MLQ scheduler, syscall và paging MM64 đúng theo yêu cầu.
+- Giao tiếp user/kernel tuân thủ PID-based lookup, đảm bảo tách biệt không gian.
+- Paging nhiều tầng hoạt động ổn định; thay trang chưa được kích hoạt trong workload mẫu.

@@ -26,6 +26,13 @@
 # Keep any Markdown files anywhere
 !**/*.md
 
+# Ignore selected markdown files
+/flow.md
+/HOW_TO_RUN_TESTS.md
+/QUESTIONS.md
+/REPORT_BASE.md
+/ReportNew.md
+
 # Ignore the repository-level Instructions.md specifically
 # (override the previous keep rule)
 /Instructions.md
