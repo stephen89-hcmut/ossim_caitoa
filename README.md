@@ -171,7 +171,7 @@ Dạng tổng quát là:
 
 Nếu cấu hình có memory paging động, file còn chứa thông tin RAM/SWAP theo format riêng của đề.
 
-## 6. 3 phase kiểm thử
+## 6. 3 Testing
 
 ### Phase 1: CPU Scheduling
 
@@ -189,7 +189,7 @@ Các file tiến trình thường dùng:
 - [input/proc/s0](input/proc/s0) đến [input/proc/s4](input/proc/s4)
 - [input/proc/p1s](input/proc/p1s), [input/proc/p2s](input/proc/p2s), [input/proc/p3s](input/proc/p3s)
 
-Output tương ứng thường là:
+Output tương ứng là:
 
 - [output/sched.output](output/sched.output)
 - [output/sched_0.output](output/sched_0.output)
@@ -230,7 +230,7 @@ Tiến trình đặc trưng:
 
 Phase này kiểm tra kmalloc, cache, copy_from_user và copy_to_user qua syscall nội bộ.
 
-### Phase 3: System Calls
+### Phase 3: System Calls, Interface Kernel
 
 Mục tiêu là kiểm tra syscall interface, bảng syscall và khả năng thêm syscall mới.
 
@@ -256,12 +256,6 @@ Output đối chiếu tương ứng:
 
 1. Sửa code trong [src/](src/) theo đúng module cần làm.
 2. Chạy make all để build lại toàn bộ hệ thống.
-
-## 8. Tài liệu liên quan
-- [QUESTIONS.md](QUESTIONS.md)
-- [REPORT.md](REPORT.md)
-- [ReportNew.md](ReportNew.md)
-- [flow.md](flow.md)
 3. Chạy `./os <config>` cho từng case cần kiểm tra nhanh.
 4. Chạy `./run.sh` để sinh hoặc refresh toàn bộ output.
 5. So sánh file kết quả trong `output/` với output mẫu của đề.
@@ -271,4 +265,3 @@ Output đối chiếu tương ứng:
 - Output của một số test đa CPU có thể có nhiều thứ tự hợp lệ, miễn là tuân thủ đúng luật scheduler và memory model.
 - Không thay đổi macro cấu hình nếu chưa hiểu tác động tới toàn bộ hệ thống.
 - Khi làm memory management, luôn phân biệt rõ user space và kernel space.
-- `CO2018_ossim_caitoa.pdf` là tài liệu đề gốc nên nên dùng kèm với README này khi viết báo cáo.

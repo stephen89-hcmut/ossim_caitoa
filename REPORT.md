@@ -6,6 +6,7 @@
 - **Thành viên:**
        - Nguyễn Thanh Tùng - 2449106
        - Nguyễn Hoàng - 2433007
+       - Dương Quang Minh - 2412034
 - **Môn học:** Hệ điều hành
 - **Đề tài:** Simple Operating System (MLQ scheduler, MM64 paging, syscall)
 
