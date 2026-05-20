@@ -198,7 +198,7 @@ static void read_config(const char * path) {
 	 * for legacy info 
          *  [time slice] [N = Number of CPU] [M = Number of Processes to be run]
          */
-        memramsz  =  0x100000000;
+        memramsz  =  0x1000000;
         memswpsz[0] = 0x1000000;
 	for(sit = 1; sit < PAGING_MAX_MMSWP; sit++)
 		memswpsz[sit] = 0;
@@ -219,7 +219,7 @@ static void read_config(const char * path) {
 			memswpsz[3] = m5;
 		} else {
 			/* No memory config found, fallback to default sizes and rewind */
-			memramsz  =  0x100000000;
+			memramsz  =  0x1000000;
 			memswpsz[0] = 0x1000000;
 			for (sit = 1; sit < PAGING_MAX_MMSWP; sit++)
 				memswpsz[sit] = 0;
@@ -294,7 +294,13 @@ int main(int argc, char * argv[]) {
 
 	mm_ld_args->timer_id = ld_event;
 	mm_ld_args->mram = (struct memphy_struct *) &mram;
-	mm_ld_args->mswp = (struct memphy_struct**) &mswp;
+	
+	// Create a pointer array for mswp to avoid type mismatch
+	struct memphy_struct** mswp_ptr_array = malloc(PAGING_MAX_MMSWP * sizeof(struct memphy_struct*));
+	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
+		mswp_ptr_array[sit] = &mswp[sit];
+		
+	mm_ld_args->mswp = mswp_ptr_array;
 	mm_ld_args->active_mswp = (struct memphy_struct *) &mswp[0];
         mm_ld_args->active_mswp_id = 0;
 

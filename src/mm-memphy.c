@@ -229,9 +229,13 @@ int MEMPHY_put_freefp(struct memphy_struct *mp, addr_t fpn)
  */
 int init_memphy(struct memphy_struct *mp, addr_t max_size, int randomflg)
 {
-   mp->storage = (BYTE *)malloc(max_size * sizeof(BYTE));
    mp->maxsz = max_size;
-   memset(mp->storage, 0, max_size * sizeof(BYTE));
+   mp->storage = NULL;
+   if (max_size > 0) {
+      mp->storage = (BYTE *)malloc(max_size * sizeof(BYTE));
+      if (mp->storage == NULL) return -1;
+      memset(mp->storage, 0, max_size * sizeof(BYTE));
+   }
 
    MEMPHY_format(mp, PAGING_PAGESZ);
 
